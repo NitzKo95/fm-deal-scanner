@@ -10,10 +10,11 @@ Reads MapleStory Classic World player shops off your screen and flags listings u
 4. **Pop out overlay** keeps a small always-on-top window over the game.
 
 Hover an item in a shop and its stats are read from the tooltip: points above or below the item's base, and
-used upgrade slots, move its usual price up or down (tune how much under **Rules**).
+used upgrade slots, move its usual price up or down (tune how much under **Rules**). This needs a usual price
+for the item, from the tracker or your own sightings.
 
-Every item gets its picture, whether or not a tracker page is loaded: the tracker's item id when it lists the
-item, otherwise the id that item's exact name has in the game data.
+Every item gets its picture, and its name is matched, whether or not a tracker page is loaded: the game's own
+item list fills in for items the tracker doesn't list.
 
 Everything stays in your browser. Nothing you see or set is sent anywhere; the only outside requests are the
 item pictures from [maplestory.io](https://maplestory.io).
@@ -40,8 +41,8 @@ Each check takes the newest frame of the share and:
 4. **Parses** "N for X mesos" lines and their names, catching the reader's usual mistakes: letters for digits,
    hidden digits (a wide gap inside a price), sold rows (grey text). `src/listing/parseListing.ts`,
    `src/tooltip/parseTooltip.ts`
-5. **Matches** names to the tracker's items, allowing a misread letter or two in long names but never guessing
-   between two items. `src/market/matching.ts`
+5. **Matches** names to your price book's and the tracker's items, then to every item in the game, allowing a
+   misread letter or two in long names but never guessing between two items. `src/market/matching.ts`
 6. **Judges** each listing against its usual price: your typed price, else the lower of the market price and
    your own sightings. `src/pricing/evaluate.ts`
 7. **Confirms** a listing only when two of the last three reads agree, so a frame caught mid-scroll can't invent

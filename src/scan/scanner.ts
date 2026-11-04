@@ -157,6 +157,6 @@ export class Scanner<F, I> {
 
   private readonly resolveName: ResolveName = (name) => {
     const key = resolveKey({ market: this.e.market, book: this.e.book }, name, false);
-    return { key, known: this.e.market.get(key)?.n ?? null };
+    return { key, known: this.e.market.knownName(key) };
   };
 }

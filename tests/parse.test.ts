@@ -5,7 +5,9 @@ import type { OcrLine } from '../src/lib/types';
 import { cleanName, isGreyed, parseLines, priceGap, PRICE_RE } from '../src/listing/parseListing';
 import { parseTooltip, statKind, statNumbers, type ResolveName } from '../src/tooltip/parseTooltip';
 import { slotsForType, statSig, statValue } from '../src/tooltip/statValue';
+import { resolveKey } from '../src/market/matching';
 import { FIXTURES } from './helpers/image';
+import { CATALOG, market } from './helpers/market';
 
 const lines = (name: string): OcrLine[] => JSON.parse(readFileSync(join(FIXTURES, 'ocr', `${name}.lines.json`), 'utf8')) as OcrLine[];
 const line = (text: string, confidence = 95): OcrLine => ({ text, confidence });
@@ -161,6 +163,28 @@ describe('parseTooltip', () => {
     expect(t.remaining).toBe(7);
   });
 
+  it('reads a stat line whose colon the reader lost', () => {
+    const t = parseTooltip([line('Traus'), line('REQ LEV: 40'), line('Weapon Attack +58 (60-2)'), line(':  Weapon Attack +62 (60 +2)'), line('Speed: Fast')], resolve)!;
+    expect(t.stats.map((s) => [s.label, s.total, s.base])).toEqual([['att', 58, 60], ['att', 62, 60]]);
+  });
+
+  it('works out a base read as letters from the difference', () => {
+    const t = parseTooltip([line('Traus'), line('REQ LEV: 40'), line('\u201cWeapon Attack: +58 (ED -2)')], resolve)!;
+    expect(t.stats).toEqual([{ label: 'att', weight: 1, total: 58, base: 60, delta: -2 }]);
+  });
+
+  it("cleans up the name with the game's item list when the tracker doesn't list it", () => {
+    const m = market([]).withCatalog(CATALOG);
+    const byGame: ResolveName = (name) => { const key = resolveKey({ market: m, book: { items: {} } }, name, false); return { key, known: m.knownName(key) }; };
+    for (const first of ['als Axe Pole Arm', 'al* Axe Pole Arm', 'a+ Axe Pole Arm', 'ds Axe Pole Arm']) {
+      const t = parseTooltip([line(first), line('REQ LEV: 35'), line('Weapon Attack: +62 (60 +2)')], byGame)!;
+      expect(t.key, first).toBe('axe pole arm');
+      expect(t.name).toBe('Axe Pole Arm');
+    }
+    // the recorded Traus tooltip: a junk first line, then the name with a mark in front
+    expect(parseTooltip(lines('tooltip-traus.tooltip'), byGame)).toMatchObject({ key: 'traus', name: 'Traus' });
+  });
+
   it('is nothing without a name, or without stats and slots', () => {
     expect(parseTooltip([line('REQ LEV: 40'), line('Weapon Attack: +60')], resolve)).toBeNull();
     expect(parseTooltip([line('Traus'), line('REQ LEV: 40'), line('Attack Speed: Fast')], resolve)).toBeNull();
@@ -195,6 +219,7 @@ describe('statNumbers', () => {
   it('checks each part against the others', () => {
     expect(statNumbers('+62 (G0 +2)')).toEqual({ total: 62, base: 60 });   // 6 read as G
     expect(statNumbers('+62 (0 +2)')).toEqual({ total: 62, base: 60 });    // 6 lost
+    expect(statNumbers('+58 (ED -2)')).toEqual({ total: 58, base: 60 });   // 60 read as letters
     expect(statNumbers('+62 (50 +2)')).toEqual({ total: 62, base: 60 });   // 6 read as 5
     expect(statNumbers('+58 (60 2)')).toEqual({ total: 58, base: 60 });    // minus lost
     expect(statNumbers('+62 (60 -2)')).toEqual({ total: 62, base: 60 });   // plus read as minus

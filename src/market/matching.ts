@@ -30,11 +30,16 @@ export function findKey(k: string, truncated: boolean, keys: readonly string[], 
   return best != null && bd <= tol && !tie ? pick(best) : null;
 }
 
-/** The key a name read off the screen is filed under. */
+/**
+ * The key a name read off the screen is filed under: your price book's or the tracker's spelling,
+ * then any real item's from the game data (which also lists what the tracker doesn't), else as read.
+ */
 export function resolveKey(cat: Catalog, name: string, truncated: boolean): string {
   const k = norm(name);
   if (cat.book.items[k]) return k;
   if (cat.market.has(k)) return canon(cat, k);
+  // an exact real name; a cut-off name can't be one
+  if (!truncated && cat.market.catalog.has(k)) return k;
   const keys = [...new Set([...Object.keys(cat.book.items), ...cat.market.keys])];
-  return findKey(k, truncated, keys, (x) => canon(cat, x)) ?? k;
+  return findKey(k, truncated, keys, (x) => canon(cat, x)) ?? cat.market.nearestInCatalog(k, truncated) ?? k;
 }

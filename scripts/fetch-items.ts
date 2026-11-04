@@ -1,7 +1,8 @@
-// Writes public/items.json: every Classic World item's id by name, from maplestory.io, so items the
-// tracker doesn't list (or all of them, before a tracker page is loaded) still get their picture.
+// Writes public/items.json: every Classic World item's id and name, from maplestory.io, so items the
+// tracker doesn't list (or all of them, before a tracker page is loaded) still get their picture, and
+// names read off the screen can be matched against the real ones.
 // Runs at build time in CI. If maplestory.io can't be reached it keeps the file it has, and the site
-// then shows pictures by tracker id only.
+// then works from tracker data only.
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,9 +20,9 @@ try {
   const file: CatalogFile = { source: url, fetched: new Date().toISOString(), items: buildCatalog(list) };
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, JSON.stringify(file));
-  console.log(`wrote ${Object.keys(file.items).length} item names to public/items.json`);
+  console.log(`wrote ${file.items.length} item names to public/items.json`);
 } catch (e) {
-  const kept = existsSync(out) ? 'keeping the existing public/items.json' : 'pictures will come from tracker ids only';
+  const kept = existsSync(out) ? 'keeping the existing public/items.json' : 'the site will work from tracker data only';
   // a GitHub Actions warning when run there, a plain line elsewhere
   console.log(`${process.env.GITHUB_ACTIONS ? '::warning::' : ''}could not fetch ${url} (${(e as Error).message}); ${kept}`);
 }

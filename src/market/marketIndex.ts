@@ -3,6 +3,7 @@ import { fmtEach, pctTxt, salesTxt } from '../lib/format';
 import { norm } from '../lib/text';
 import type { MarketData, MarketItem } from '../lib/types';
 import type { Catalog } from './catalog';
+import { findKey } from './matching';
 
 /** Looks up tracker items by their normalized name. */
 export class MarketIndex {
@@ -14,7 +15,10 @@ export class MarketIndex {
   readonly keys: string[];
   readonly priced: number;
 
-  /** `catalog` names every item in the game, for pictures of items the tracker doesn't list. */
+  private catalogKeyList: string[] | null = null;
+  private readonly nearest = new Map<string, string | null>();
+
+  /** `catalog` names every item in the game, for items the tracker doesn't list. */
   constructor(data: MarketData | null, readonly catalog: Catalog = new Map()) {
     this.data = data && Array.isArray(data.items) ? data : { world: '', updated: '', asOf: 0, items: [] };
     for (const it of this.data.items) {
@@ -41,7 +45,18 @@ export class MarketIndex {
   /** The item id its picture is under: the tracker's, else the game data's for that exact name. */
   iconId(key: string): number | null {
     const mk = this.byKey.get(key);
-    return (mk && itemNumber(mk.id)) ?? this.catalog.get(key) ?? null;
+    return (mk && itemNumber(mk.id)) ?? this.catalog.get(key)?.id ?? null;
+  }
+  /** The real name of the item a key is filed under, from the tracker or the game data. */
+  knownName(key: string): string | null { return this.byKey.get(key)?.n ?? this.catalog.get(key)?.name ?? null; }
+  /** The game-data item a name read off the screen means, if exactly one is that close. */
+  nearestInCatalog(k: string, truncated: boolean): string | null {
+    const memo = `${truncated ? 1 : 0}${k}`;
+    if (!this.nearest.has(memo)) {
+      this.catalogKeyList ??= [...this.catalog.keys()];
+      this.nearest.set(memo, findKey(k, truncated, this.catalogKeyList, (x) => x));
+    }
+    return this.nearest.get(memo) ?? null;
   }
   /** The same prices, with another catalog. */
   withCatalog(catalog: Catalog): MarketIndex { return new MarketIndex(this.data, catalog); }

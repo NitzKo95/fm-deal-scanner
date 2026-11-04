@@ -37,7 +37,7 @@ ${[
 </tbody></table></body></html>`;
 
 /** The item names the build fetches from maplestory.io, a few of them, so the tests don't depend on it. */
-const CATALOG = { source: 'test', fetched: '2026-11-04T00:00:00Z', items: { lemona: 1082003, traus: 1302012 } };
+const CATALOG = { source: 'test', fetched: '2026-11-04T00:00:00Z', items: [[1082003, 'Lemona'], [1302012, 'Traus']] };
 
 /** Icons come from maplestory.io; the tests serve a stand-in so they don't depend on it. */
 const ICON = PNG.sync.write(Object.assign(new PNG({ width: 4, height: 4 }), { data: Buffer.alloc(64, 200) }));

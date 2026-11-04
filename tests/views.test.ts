@@ -6,7 +6,7 @@ import {
   bookRowHtml, bookRows, dealLine, hoverText, iconHtml, overlayHtml, overlayRowHtml, parsePriceLines, rulesSummary, shopMeta, shopRowHtml, sortRows,
 } from '../src/ui/views';
 import { DEFAULT_SETTINGS } from '../src/lib/types';
-import { engine, NOW } from './helpers/market';
+import { catalogOf, engine, NOW } from './helpers/market';
 
 const raw = (name: string, price: number, o: Partial<RawListing> = {}): RawListing => ({
   name, truncated: false, nameConf: 95, cy: null, qty: 1, price, greyed: false, unsure: false, ...o,
@@ -32,13 +32,13 @@ describe('icons', () => {
     expect(iconHtml(m, 'mystery item')).toBe('<span class="ico unk" data-e="?" title="Not on the price tracker" aria-hidden="true"></span>');
   });
   it('still shows the picture of an item the tracker does not list, by its name in the game data', () => {
-    const html = iconHtml(m.withCatalog(new Map([['brown work gloves', 1082002]])), 'brown work gloves');
+    const html = iconHtml(m.withCatalog(catalogOf([[1082002, 'Brown Work Gloves']])), 'brown work gloves');
     expect(html).toContain('class="ico unk"');
     expect(html).toContain('<img src="https://maplestory.io/api/MCW/1/item/1082002/icon"');
   });
   it('shows pictures with no tracker page loaded at all', () => {
     const e = engine({ items: [], book: { items: { lemona: newItem('Lemona') } } });
-    e.market = e.market.withCatalog(new Map([['lemona', 1082003]]));
+    e.market = e.market.withCatalog(catalogOf([[1082003, 'Lemona']]));
     const [row] = bookRows(e, '', { col: 'name', dir: 1 });
     expect(bookRowHtml(row!, NOW)).toContain('<img src="https://maplestory.io/api/MCW/1/item/1082003/icon"');
   });

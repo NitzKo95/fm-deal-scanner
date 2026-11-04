@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { isRough, isSetItem, marketTip } from '../src/market/marketIndex';
 import { canon, findKey, resolveKey } from '../src/market/matching';
 import { parseTrackerPage } from '../src/market/parseTrackerPage';
-import { ITEMS, market } from './helpers/market';
+import { CATALOG, ITEMS, market } from './helpers/market';
 
 /** Built from the tracker table's structure, with made-up rows. */
 const PAGE = `<!doctype html><html><body>
@@ -123,6 +123,22 @@ describe('matching', () => {
   it('prefers a price-book key over a fuzzy market match', () => {
     const withBook = { market: market(), book: { items: { 'trau s': { name: 'Trau s', manualRef: null, buyUnder: null, s: [] } } } };
     expect(resolveKey(withBook, 'Trau s', false)).toBe('trau s');
+  });
+  it("places names with no tracker data from the game's own item list", () => {
+    const none = { market: market([]).withCatalog(CATALOG), book: { items: {} } };
+    expect(resolveKey(none, 'Axe Pole Arm', false)).toBe('axe pole arm');
+    expect(resolveKey(none, 'Axe Pole Arn', false)).toBe('axe pole arm');
+    expect(resolveKey(none, 'Soft Chocolate Fon', true)).toBe('soft chocolate fondue scepter');
+    expect(resolveKey(none, '5P Reset Scroll', false)).toBe('5p reset scroll');   // still no guessing between two
+    expect(resolveKey(none, 'Mystery Rock Thing', false)).toBe('mystery rock thing');
+  });
+  it('places untracked items next to tracked ones, the tracker first for a misread', () => {
+    const both = { market: market().withCatalog(CATALOG), book: { items: {} } };
+    expect(resolveKey(both, 'Work Gloves', false)).toBe('work gloves');
+    expect(resolveKey(both, 'Work Glovez', false)).toBe('work gloves');
+    expect(resolveKey(both, 'Traus', false)).toBe('traus');
+    // a cut-off name is never taken as the whole name of another item
+    expect(resolveKey(both, 'Axe', true)).not.toBe('axe');
   });
   it('maps short-name keys to the full name unless the book files them', () => {
     const one = { market: market([{ id: 'basil:1', n: 'Thing: Special', a: 'Thing', c: 'Etc', p: 1, s: 1, d: null, w: null }]), book: { items: {} } };

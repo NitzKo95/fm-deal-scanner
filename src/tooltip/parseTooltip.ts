@@ -34,9 +34,10 @@ const toDigits = (s: string) => s.replace(/[Gb]/g, '6').replace(/[Oo]/g, '0').re
  * the stat counts as average.
  */
 export function statNumbers(value: string): { total: number; base: number } | null {
-  const m = toDigits(value).match(/^\s*\+?\s*(\d+)\s*(?:\(\s*(\d*)\s*([+-])?\s*(\d+)?\s*\)?)?/);
+  // the base can come out as letters ("(ED -2)" for "(60 -2)"); the difference then still tells it
+  const m = toDigits(value).match(/^\s*\+?\s*(\d+)\s*(?:\(\s*([^\s()+-]*)\s*([+-])?\s*(\d+)?\s*\)?)?/);
   if (!m) return null;
-  const total = +m[1]!, base = m[2] ? +m[2] : null, sign = m[3] ?? null, mod = m[4] != null ? +m[4] : null;
+  const total = +m[1]!, base = m[2] && /^\d+$/.test(m[2]) ? +m[2] : null, sign = m[3] ?? null, mod = m[4] != null ? +m[4] : null;
   // copies differ from the base by a few points; "(602)" for "(60 2)" is not a base of 602
   const plausible = (b: number) => Math.abs(total - b) <= Math.max(10, 0.35 * b);
   if (base != null && (mod == null || Math.abs(total - base) === mod) && plausible(base)) return { total, base };
@@ -44,7 +45,7 @@ export function statNumbers(value: string): { total: number; base: number } | nu
   return { total, base: total };
 }
 
-/** Resolves a name read off the screen: its key, and the tracker's spelling when it is a known item. */
+/** Resolves a name read off the screen: its key, and the real spelling when it is a known item. */
 export type ResolveName = (name: string) => { key: string; known: string | null };
 
 export function parseTooltip(lines: readonly OcrLine[], resolve: ResolveName): TooltipRead | null {
@@ -52,7 +53,7 @@ export function parseTooltip(lines: readonly OcrLine[], resolve: ResolveName): T
   const firstReq = texts.findIndex((t) => /\bREQ\b/i.test(t));
 
   // The name line, read through a see-through box, can pick up a stray word or symbol in front:
-  // try it whole, then without its first word or two. Prefer a name the tracker knows.
+  // try it whole, then without its first word or two. Prefer the name of a real item.
   let key: string | null = null, name: string | null = null, known = false;
   // the name is above the requirements; with no requirements read, within the first lines
   for (const t of firstReq >= 0 ? texts.slice(0, firstReq) : texts.slice(0, 3)) {
@@ -80,7 +81,8 @@ export function parseTooltip(lines: readonly OcrLine[], resolve: ResolveName): T
     }
     let mm = t.match(/type\s*[:;]\s*([A-Za-z][A-Za-z -]+)/i);
     if (mm) { type = mm[1]!.trim(); continue; }
-    mm = t.match(/^[^A-Za-z]*([A-Za-z][A-Za-z .]*?)\s*[:;]\s*(.+)$/);
+    // "Weapon Attack: +58 (60 -2)", also with the colon lost: "Weapon Attack +58 (60-2)"
+    mm = t.match(/^[^A-Za-z]*([A-Za-z][A-Za-z .]*?)\s*(?:[:;]|(?=[+-]?\s*\d))\s*(.+)$/);
     if (!mm) continue;
     const kind = statKind(mm[1]!);
     const nums = kind && statNumbers(mm[2]!);

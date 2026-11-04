@@ -6,7 +6,7 @@ import { Scanner, type Ocr } from '../../src/scan/scanner';
 import { ShopSession } from '../../src/shop/session';
 import type { Pixels } from '../../src/vision/pixels';
 import { loadPng, placeOn, scaleBy } from '../helpers/image';
-import { engine } from '../helpers/market';
+import { CATALOG, engine } from '../helpers/market';
 import { nodeOcr, pixelsAdapter } from '../helpers/pipeline';
 
 let ocr: Ocr<Buffer> & { terminate(): Promise<void> };
@@ -15,8 +15,10 @@ afterAll(async () => { await ocr.terminate(); });
 
 const STILL = { auto: true, region: null, readStats: true, live: false, force: true } as const;
 
-function scanner() {
-  const e = engine();
+/** With tracker data, or with none: names then come from the game's own item list. */
+function scanner(tracker = true) {
+  const e = engine(tracker ? {} : { items: [] });
+  e.market = e.market.withCatalog(CATALOG);
   const session = new ShopSession(e);
   return { e, session, scanner: new Scanner(pixelsAdapter, ocr, session, e) };
 }
@@ -101,11 +103,14 @@ describe('reading stats from tooltips', () => {
     { file: 'tooltip-traus.png', name: 'Traus', sig: 'att:58/60|7', summary: '−2 att' },
     { file: 'tooltip-axe-pole-arm.png', name: 'Axe Pole Arm', sig: 'att:62/60|7', summary: '+2 att' },
   ];
-  for (const t of TIPS) {
-    for (const [f, sw, sh] of [[0.6, 1512, 982], [1.0, 3024, 1964], [1.4, 3456, 2234]] as const) {
-      it(`reads ${t.name}'s stats at ${f * 100}% and puts them on the listing under the mouse`, async () => {
+  // the game sizes the tooltip can be found at (see the vision tests): a game pixel of 1 screen
+  // pixel, or 1.2 and up
+  const TIP_SIZES = SIZES.filter(([f]) => f === 0.5 || f >= 0.6);
+  for (const t of TIPS) for (const tracker of [true, false]) {
+    for (const [f, sw, sh] of TIP_SIZES) {
+      it(`reads ${t.name}'s stats at ${Math.round(f * 100)}% ${tracker ? 'with' : 'without'} tracker data and puts them on the listing under the mouse`, async () => {
         const { frame, at } = hover(t.file, f, sw, sh);
-        const { session, scanner: sc } = scanner();
+        const { session, scanner: sc } = scanner(tracker);
         // the shop as read before the mouse moved over it: two listings of the item, one under the mouse
         session.read([
           ...SHOPS['shop-list.png'].map((k, i) => raw(k.split('|')[0]!, Number(k.split('|')[2]!.split('×')[0]), 0.1 + i * 0.01)),

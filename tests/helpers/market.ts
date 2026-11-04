@@ -1,5 +1,6 @@
 import type { Engine } from '../../src/engine';
 import { DEFAULT_SETTINGS, type MarketItem, type PriceBook, type Settings } from '../../src/lib/types';
+import { parseCatalog, type Catalog } from '../../src/market/catalog';
 import { MarketIndex } from '../../src/market/marketIndex';
 
 /** Synthetic tracker items covering the cases the logic distinguishes. */
@@ -23,6 +24,15 @@ export const ITEMS: MarketItem[] = [
 ];
 
 export const market = (items: MarketItem[] = ITEMS) => new MarketIndex({ world: 'Windia', updated: 'Nov 1, 2:30 PM', asOf: 0, items });
+
+/** The game data's list of items, as the site loads it: [id, name] per item. */
+export const catalogOf = (items: [number, string][]): Catalog => parseCatalog({ items });
+
+/** Every test item as game data, plus a few the tracker doesn't list. */
+export const CATALOG = catalogOf([
+  ...ITEMS.map((it): [number, string] => [Number(it.id.split(':')[1]), it.n]),
+  [1082002, 'Work Gloves'], [1302000, 'Sword'], [1040002, 'White Undershirt'], [1442000, 'Axe'],
+]);
 
 export const NOW = Date.UTC(2026, 10, 4, 12, 0, 0);
 
