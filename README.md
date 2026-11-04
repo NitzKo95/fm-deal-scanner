@@ -12,6 +12,9 @@ Reads MapleStory Classic World player shops off your screen and flags listings u
 Hover an item in a shop and its stats are read from the tooltip: points above or below the item's base, and
 used upgrade slots, move its usual price up or down (tune how much under **Rules**).
 
+Every item gets its picture, whether or not a tracker page is loaded: the tracker's item id when it lists the
+item, otherwise the id that item's exact name has in the game data.
+
 Everything stays in your browser. Nothing you see or set is sent anywhere; the only outside requests are the
 item pictures from [maplestory.io](https://maplestory.io).
 
@@ -55,6 +58,7 @@ npm test           # unit tests
 npm run bench      # accuracy benchmark: screenshots through the whole scanner, real text reader
 npm run test:e2e   # the built site in Chromium: shop reading at 9 sizes, tooltips, data import, layout
 npm run build      # dist/, served under /fm-deal-scanner/
+npm run items      # public/items.json: every item's id by name, from maplestory.io (CI runs it before building)
 ```
 
 The test screenshots are in `tests/fixtures/img`. `npm run record-ocr -- <image>` records what the text reader
@@ -64,5 +68,5 @@ Every push to `main` runs all of the above in GitHub Actions and publishes `dist
 
 ## Credits
 
-Item pictures: [maplestory.io](https://maplestory.io) (MapleStory Classic World data). Text reading:
+Item pictures and names: [maplestory.io](https://maplestory.io) (MapleStory Classic World data). Text reading:
 [tesseract.js](https://github.com/naptha/tesseract.js). Not affiliated with Nexon.

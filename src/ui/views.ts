@@ -13,12 +13,17 @@ import type { Deal, DisplayRow, Hover, ShopSession } from '../shop/session';
 export const VERDICT: Record<Verdict, string> = { deal: 'Deal', fair: 'Fair', high: 'Pricey', new: 'No price yet', sold: 'Sold', unsure: 'Check' };
 const ORDER: Record<Verdict, number> = { deal: 0, unsure: 1, fair: 2, new: 3, high: 4, sold: 5 };
 
-/** The item's picture, or the tracker's emoji for it until (or unless) the picture loads. */
-export function iconHtml(mk: MarketItem | null, failed: ReadonlySet<string> = new Set()): string {
-  if (!mk) return '<span class="ico unk" data-e="?" title="Not on the price tracker" aria-hidden="true"></span>';
-  const src = iconUrl(mk);
+/** The item's picture, over the tracker's emoji for it (or "?" when the tracker doesn't list it), which shows until or unless it loads. */
+export function iconHtml(market: MarketIndex, key: string, failed?: ReadonlySet<string>): string {
+  return iconFor(market.get(key), market.iconId(key), failed);
+}
+
+function iconFor(mk: MarketItem | null, id: number | null, failed: ReadonlySet<string> = new Set()): string {
+  const src = iconUrl(id);
   const img = src && !failed.has(src) ? `<img src="${esc(src)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : '';
-  return `<span class="ico" data-e="${esc(mk.e || '•')}" aria-hidden="true">${img}</span>`;
+  return mk
+    ? `<span class="ico" data-e="${esc(mk.e || '•')}" aria-hidden="true">${img}</span>`
+    : `<span class="ico unk" data-e="?" title="Not on the price tracker" aria-hidden="true">${img}</span>`;
 }
 
 export interface DealLine { name: string; listing: string; why: string; profit: string }
@@ -57,7 +62,7 @@ export function shopRowHtml(r: DisplayRow, market: MarketIndex, failed?: Readonl
   const listing = `${r.set ? `set of ${r.qty}` : r.qty} for ${fmt(r.price)}` + (r.stats ? `, ${r.stats.summary}` : '');
   const tip = usualTip(r, mk);
   return `<tr class="v-${r.verdict}">
-    <td class="name"><span class="nm">${iconHtml(mk, failed)}<span class="nm-t"><span class="nm-n">${label}</span><span class="sub"${r.set ? ` title="One item holding ${r.qty}, priced as a set"` : ''}>${esc(listing)}</span></span></span></td>
+    <td class="name"><span class="nm">${iconHtml(market, r.key, failed)}<span class="nm-t"><span class="nm-n">${label}</span><span class="sub"${r.set ? ` title="One item holding ${r.qty}, priced as a set"` : ''}>${esc(listing)}</span></span></span></td>
     <td class="n">${fmtEach(r.unit)}</td>
     <td class="n dim"${tip ? ` title="${esc(tip)}"` : ''}>${r.usual == null ? '–' : fmtEach(r.usual) + (r.stats ? '<span class="sub">by stats</span>' : '')}</td>
     <td class="n ${pct.cls}">${pct.text}</td>
@@ -68,12 +73,11 @@ export function shopRowHtml(r: DisplayRow, market: MarketIndex, failed?: Readonl
 
 /** The overlay's row: price now, the usual price it's measured against, and how far apart they are. */
 export function overlayRowHtml(r: DisplayRow, market: MarketIndex, failed?: ReadonlySet<string>): string {
-  const mk = market.get(r.key);
   const pct = pctCell(r.pct);
   const label = `${esc(r.name)}${r.truncated ? '…' : ''}`
     + (r.unchecked ? ` <span class="cnt">${r.count} more, not hovered</span>` : r.count > 1 ? ` <span class="cnt">×${r.count}</span>` : '');
   const chip = `<span class="chip ${r.verdict}"${r.why ? ` title="${esc(r.why)}"` : ''}>${r.verdict === 'new' ? 'No price' : VERDICT[r.verdict]}</span>`;
-  return `<tr class="v-${r.verdict}"><td class="name"><span class="nm">${iconHtml(mk, failed)}<span class="nm-n" title="${esc(r.name)}">${label}</span></span></td>`
+  return `<tr class="v-${r.verdict}"><td class="name"><span class="nm">${iconHtml(market, r.key, failed)}<span class="nm-n" title="${esc(r.name)}">${label}</span></span></td>`
     + `<td class="n">${fmtShort(r.unit)}</td><td class="n dim">${r.usual == null ? '–' : fmtShort(r.usual)}</td><td class="n ${pct.cls}">${pct.text}</td><td>${chip}</td></tr>`;
 }
 
@@ -97,20 +101,20 @@ export function shopMeta(s: ShopSession, rows: readonly DisplayRow[]): string {
 export function dealsHtml(deals: readonly Deal[], market: MarketIndex, failed?: ReadonlySet<string>): string {
   return deals.map((d) => {
     const l = dealLine(d, market);
-    return `<li><span class="t">${clock(d.ts)}</span><span class="w"><span class="nm">${iconHtml(market.get(d.key), failed)}<span class="nm-t"><span class="nm-n">${esc(l.name)}</span><span class="sub">${esc(cap(l.listing))}, ${esc(l.why)}</span></span></span></span><span class="p">${esc(l.profit)}</span></li>`;
+    return `<li><span class="t">${clock(d.ts)}</span><span class="w"><span class="nm">${iconHtml(market, d.key, failed)}<span class="nm-t"><span class="nm-n">${esc(l.name)}</span><span class="sub">${esc(cap(l.listing))}, ${esc(l.why)}</span></span></span></span><span class="p">${esc(l.profit)}</span></li>`;
   }).join('');
 }
 
-export interface OverlayState { open: boolean; capturing: boolean; rows: DisplayRow[]; deal: Deal | null; hover: string; hoverMk: MarketItem | null }
+export interface OverlayState { open: boolean; capturing: boolean; rows: DisplayRow[]; deal: Deal | null; hover: string; hoverKey: string | null }
 
 /** The overlay: the newest deal on top, then the best eight rows of the open shop. */
 export function overlayHtml(o: OverlayState, market: MarketIndex, failed?: ReadonlySet<string>): string {
   const rows = o.rows.slice(0, 8);
   const l = o.deal ? dealLine(o.deal, market) : null;
   const head = `<div class="ph"><b>FM Deal Scanner</b><span>${o.open ? 'Shop open' : o.capturing ? 'Watching' : 'Not capturing'}</span></div>`;
-  const hover = o.hover ? `<p class="hovered">${iconHtml(o.hoverMk, failed)}<span>${esc(o.hover)}</span></p>` : '';
+  const hover = o.hover && o.hoverKey != null ? `<p class="hovered">${iconHtml(market, o.hoverKey, failed)}<span>${esc(o.hover)}</span></p>` : '';
   const deal = l && o.deal
-    ? `<div class="banner"><span class="label">Deal at ${clock(o.deal.ts)}</span><span class="what">${iconHtml(market.get(o.deal.key), failed)}<span>${esc(l.name)}</span></span><span class="math">${esc(cap(l.listing))}, ${esc(l.why)}</span><span class="profit">${esc(l.profit)}</span></div>`
+    ? `<div class="banner"><span class="label">Deal at ${clock(o.deal.ts)}</span><span class="what">${iconHtml(market, o.deal.key, failed)}<span>${esc(l.name)}</span></span><span class="math">${esc(cap(l.listing))}, ${esc(l.why)}</span><span class="profit">${esc(l.profit)}</span></div>`
     : '';
   const table = rows.length
     ? '<table><colgroup><col><col style="width:62px"><col style="width:62px"><col style="width:50px"><col style="width:72px"></colgroup>'
@@ -123,7 +127,7 @@ export function overlayHtml(o: OverlayState, market: MarketIndex, failed?: Reado
 // ---------- price book ----------
 
 export interface BookRow {
-  key: string; it: BookItem | null; mk: MarketItem | null; name: string;
+  key: string; it: BookItem | null; mk: MarketItem | null; name: string; icon: number | null;
   n: number; usual: number | null; usualSrc: UsualSource | null; sales: number | null; low: number | null; last: number | null;
 }
 export type BookSort = { col: 'name' | 'n' | 'usual' | 'low' | 'last'; dir: 1 | -1 };
@@ -137,7 +141,7 @@ export function bookRows(e: Engine, query: string, sort: BookSort): BookRow[] {
   const rows = [...keys].map((key): BookRow => {
     const it = e.book.items[key] ?? null, mk = e.market.get(key);
     const st = sightingStats(it, now), u = usualPrice(it, mk, e.settings, now);
-    return { key, it, mk, name: it ? it.name : mk?.n ?? key, n: st.n, usual: u?.value ?? null, usualSrc: u?.src ?? null, sales: mk?.s ?? null, low: st.low, last: st.last };
+    return { key, it, mk, name: it ? it.name : mk?.n ?? key, icon: e.market.iconId(key), n: st.n, usual: u?.value ?? null, usualSrc: u?.src ?? null, sales: mk?.s ?? null, low: st.low, last: st.last };
   }).filter((r) => !q || norm(r.name).includes(q) || r.key.includes(q));
   const { col, dir } = sort;
   return rows.sort((a, b) => (col === 'name' ? dir * a.name.localeCompare(b.name) : dir * ((a[col] ?? -Infinity) - (b[col] ?? -Infinity))));
@@ -150,7 +154,7 @@ export function bookRowHtml(r: BookRow, now: number, failed?: ReadonlySet<string
   const sub = r.mk && r.sales != null ? salesTxt(r.sales) : '';
   const it = r.it;
   return `<tr>
-    <td class="name"><span class="nm">${iconHtml(r.mk, failed)}<span class="nm-n">${esc(r.name)}</span></span></td>
+    <td class="name"><span class="nm">${iconFor(r.mk, r.icon, failed)}<span class="nm-n">${esc(r.name)}</span></span></td>
     <td class="n">${r.n}</td>
     <td class="n"${r.mk ? ` title="${esc(marketTip(r.mk))}"` : ''}>${r.usual == null ? dash : fmtEach(r.usual) + tag}${warn}${sub ? `<small class="sub">${sub}</small>` : ''}</td>
     <td class="n">${fmtEach(r.low)}</td>

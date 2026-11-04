@@ -21,6 +21,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Item names for pictures (maplestory.io)
+        run: npm run items
       - name: Typecheck
         run: npm run typecheck
       - name: Unit tests

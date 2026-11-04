@@ -12,8 +12,7 @@ describe('icons', () => {
     expect(itemNumber('nonsense')).toBeNull();
   });
   it('points at the Classic World icon for the item', () => {
-    const mk = { id: 'basil:01302012', n: 'Traus', c: 'Weapons', p: 1, s: 1, d: null, w: null };
-    expect(iconUrl(mk)).toBe('https://maplestory.io/api/MCW/1/item/1302012/icon');
+    expect(iconUrl(1302012)).toBe('https://maplestory.io/api/MCW/1/item/1302012/icon');
     expect(iconUrl(null)).toBeNull();
   });
 });

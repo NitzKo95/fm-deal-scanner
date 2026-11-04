@@ -4,6 +4,7 @@ import type { Engine } from './engine';
 import { cap, clock, esc, fmt } from './lib/format';
 import { parseAmount } from './lib/text';
 import type { MarketData, PriceBook, Region, Settings } from './lib/types';
+import { loadCatalog } from './market/catalog';
 import { MarketIndex } from './market/marketIndex';
 import { resolveKey } from './market/matching';
 import { parseTrackerPage } from './market/parseTrackerPage';
@@ -84,6 +85,15 @@ export class App {
     // times like "opened 3:41 PM" and the banner's 5 minutes move on even when nothing is read
     setInterval(() => { if (!document.hidden) { this.renderShop(); this.renderOverlay(); } }, 15_000);
     setInterval(() => this.renderDiag(), 1000);
+    void this.loadCatalog();
+  }
+
+  /** Item ids by name, so items the tracker doesn't list (or all of them, with no tracker page loaded) get pictures. */
+  private async loadCatalog(): Promise<void> {
+    const catalog = await loadCatalog(`${import.meta.env.BASE_URL}items.json`);
+    if (!catalog.size) return;
+    this.engine.market = this.engine.market.withCatalog(catalog);
+    this.render();
   }
 
   private get settings(): Settings { return this.engine.settings; }
@@ -201,7 +211,7 @@ export class App {
   }
 
   private setMarket(m: MarketData): boolean {
-    this.engine.market = new MarketIndex(m);
+    this.engine.market = new MarketIndex(m, this.engine.market.catalog);
     return this.store.saveMarket(m);
   }
 
@@ -243,7 +253,7 @@ export class App {
     this.renderOverlay();
   }
 
-  private icon(key: string): string { return iconHtml(this.engine.market.get(key), this.failedIcons); }
+  private icon(key: string): string { return iconHtml(this.engine.market, key, this.failedIcons); }
 
   private iconFailed(img: HTMLImageElement): void {
     if (!img.closest('.ico')) return;
@@ -301,7 +311,7 @@ export class App {
     const h = this.session.hover;
     this.overlay.render(overlayHtml({
       open: this.session.open, capturing: this.capture.active, rows: sortRows(this.session.displayRows()),
-      deal: freshDeal(this.session, Date.now()), hover: hoverText(h, this.engine), hoverMk: h ? this.engine.market.get(h.key) : null,
+      deal: freshDeal(this.session, Date.now()), hover: hoverText(h, this.engine), hoverKey: h?.key ?? null,
     }, this.engine.market, this.failedIcons));
   }
 

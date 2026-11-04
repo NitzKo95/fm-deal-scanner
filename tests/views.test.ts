@@ -3,7 +3,7 @@ import type { RawListing } from '../src/lib/types';
 import { newItem } from '../src/pricing/priceBook';
 import { ShopSession } from '../src/shop/session';
 import {
-  bookRows, dealLine, hoverText, iconHtml, overlayHtml, overlayRowHtml, parsePriceLines, rulesSummary, shopMeta, shopRowHtml, sortRows,
+  bookRowHtml, bookRows, dealLine, hoverText, iconHtml, overlayHtml, overlayRowHtml, parsePriceLines, rulesSummary, shopMeta, shopRowHtml, sortRows,
 } from '../src/ui/views';
 import { DEFAULT_SETTINGS } from '../src/lib/types';
 import { engine, NOW } from './helpers/market';
@@ -20,15 +20,27 @@ function shop(rows: RawListing[]) {
 }
 
 describe('icons', () => {
-  const mk = engine().market.get('traus');
+  const m = engine().market;
+  const TRAUS = 'https://maplestory.io/api/MCW/1/item/1302012/icon';
   it('shows the picture with the emoji behind it', () => {
-    expect(iconHtml(mk)).toBe('<span class="ico" data-e="⚔️" aria-hidden="true"><img src="https://maplestory.io/api/MCW/1/item/1302012/icon" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer"></span>');
+    expect(iconHtml(m, 'traus')).toBe(`<span class="ico" data-e="⚔️" aria-hidden="true"><img src="${TRAUS}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer"></span>`);
   });
   it('shows only the emoji once the picture failed', () => {
-    expect(iconHtml(mk, new Set(['https://maplestory.io/api/MCW/1/item/1302012/icon']))).toBe('<span class="ico" data-e="⚔️" aria-hidden="true"></span>');
+    expect(iconHtml(m, 'traus', new Set([TRAUS]))).toBe('<span class="ico" data-e="⚔️" aria-hidden="true"></span>');
   });
   it('marks items the tracker does not know', () => {
-    expect(iconHtml(null)).toContain('ico unk');
+    expect(iconHtml(m, 'mystery item')).toBe('<span class="ico unk" data-e="?" title="Not on the price tracker" aria-hidden="true"></span>');
+  });
+  it('still shows the picture of an item the tracker does not list, by its name in the game data', () => {
+    const html = iconHtml(m.withCatalog(new Map([['brown work gloves', 1082002]])), 'brown work gloves');
+    expect(html).toContain('class="ico unk"');
+    expect(html).toContain('<img src="https://maplestory.io/api/MCW/1/item/1082002/icon"');
+  });
+  it('shows pictures with no tracker page loaded at all', () => {
+    const e = engine({ items: [], book: { items: { lemona: newItem('Lemona') } } });
+    e.market = e.market.withCatalog(new Map([['lemona', 1082003]]));
+    const [row] = bookRows(e, '', { col: 'name', dir: 1 });
+    expect(bookRowHtml(row!, NOW)).toContain('<img src="https://maplestory.io/api/MCW/1/item/1082003/icon"');
   });
 });
 
@@ -68,7 +80,7 @@ describe('shop rows', () => {
 describe('overlay', () => {
   it('shows a placeholder without a shop', () => {
     const e = engine();
-    expect(overlayHtml({ open: false, capturing: true, rows: [], deal: null, hover: '', hoverMk: null }, e.market)).toContain('Open a shop in the game.');
+    expect(overlayHtml({ open: false, capturing: true, rows: [], deal: null, hover: '', hoverKey: null }, e.market)).toContain('Open a shop in the game.');
   });
 });
 

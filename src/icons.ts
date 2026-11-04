@@ -1,5 +1,3 @@
-import type { MarketItem } from './lib/types';
-
 /**
  * Item icons come from maplestory.io's MapleStory Classic World data (region "MCW"), by item id.
  * Its ids and names match the tracker's: 1302012 is Traus there too, while the usual GMS data calls
@@ -14,7 +12,6 @@ export function itemNumber(id: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-export function iconUrl(mk: MarketItem | null): string | null {
-  const n = mk ? itemNumber(mk.id) : null;
-  return n == null ? null : `https://maplestory.io/api/${ICON_REGION}/${ICON_VERSION}/item/${n}/icon`;
+export function iconUrl(id: number | null): string | null {
+  return id == null ? null : `https://maplestory.io/api/${ICON_REGION}/${ICON_VERSION}/item/${id}/icon`;
 }

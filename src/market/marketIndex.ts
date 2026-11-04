@@ -1,6 +1,8 @@
+import { itemNumber } from '../icons';
 import { fmtEach, pctTxt, salesTxt } from '../lib/format';
 import { norm } from '../lib/text';
 import type { MarketData, MarketItem } from '../lib/types';
+import type { Catalog } from './catalog';
 
 /** Looks up tracker items by their normalized name. */
 export class MarketIndex {
@@ -12,7 +14,8 @@ export class MarketIndex {
   readonly keys: string[];
   readonly priced: number;
 
-  constructor(data: MarketData | null) {
+  /** `catalog` names every item in the game, for pictures of items the tracker doesn't list. */
+  constructor(data: MarketData | null, readonly catalog: Catalog = new Map()) {
     this.data = data && Array.isArray(data.items) ? data : { world: '', updated: '', asOf: 0, items: [] };
     for (const it of this.data.items) {
       const k = norm(it.n);
@@ -35,6 +38,13 @@ export class MarketIndex {
   /** the key of the item's full name, for a short-name key */
   primaryKey(key: string): string { const m = this.byKey.get(key); return m ? norm(m.n) : key; }
   get size(): number { return this.primary.length; }
+  /** The item id its picture is under: the tracker's, else the game data's for that exact name. */
+  iconId(key: string): number | null {
+    const mk = this.byKey.get(key);
+    return (mk && itemNumber(mk.id)) ?? this.catalog.get(key) ?? null;
+  }
+  /** The same prices, with another catalog. */
+  withCatalog(catalog: Catalog): MarketIndex { return new MarketIndex(this.data, catalog); }
 }
 
 /** fewer than 5 sales, or copies that sell for very different prices */

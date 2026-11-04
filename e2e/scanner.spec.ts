@@ -36,6 +36,9 @@ ${[
 <td data-col="price"><span class="meso" title="${Number(p).toLocaleString('en-US')} mesos">x</span></td><td><span class="sales-count">${s}</span></td></tr>`).join('\n')}
 </tbody></table></body></html>`;
 
+/** The item names the build fetches from maplestory.io, a few of them, so the tests don't depend on it. */
+const CATALOG = { source: 'test', fetched: '2026-11-04T00:00:00Z', items: { lemona: 1082003, traus: 1302012 } };
+
 /** Icons come from maplestory.io; the tests serve a stand-in so they don't depend on it. */
 const ICON = PNG.sync.write(Object.assign(new PNG({ width: 4, height: 4 }), { data: Buffer.alloc(64, 200) }));
 
@@ -45,6 +48,7 @@ async function open(page: Page) {
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   const icons: string[] = [];
   await page.route('https://maplestory.io/**', (r) => { icons.push(r.request().url()); return r.fulfill({ status: 200, contentType: 'image/png', body: ICON }); });
+  await page.route('**/fm-deal-scanner/items.json', (r) => r.fulfill({ json: CATALOG }));
   await page.goto('./');
   await page.evaluate(() => localStorage.clear());
   await page.reload();
@@ -104,7 +108,7 @@ test('reads the stats off a hover tooltip', async ({ page }) => {
 });
 
 test('keeps your data from the single-file scanner', async ({ page }) => {
-  await open(page);
+  const { icons } = await open(page);
   const backup = {
     version: 1, exported: '2026-11-03T10:00:00.000Z',
     db: { items: { lemona: { name: 'Lemona', manualRef: 25000, buyUnder: 15000, s: [[Date.now() - 3600e3, 19999, 1]] } } },
@@ -115,6 +119,9 @@ test('keeps your data from the single-file scanner', async ({ page }) => {
   const row = page.locator('#bookTable tbody tr', { hasText: 'Lemona' });
   await expect(row.locator('input[data-field="manualRef"]')).toHaveValue('25,000');
   await expect(row.locator('input[data-field="buyUnder"]')).toHaveValue('15,000');
+  // its picture shows with no tracker page loaded, found by name in the game data
+  await expect(row.locator('.ico img')).toHaveAttribute('src', 'https://maplestory.io/api/MCW/1/item/1082003/icon');
+  await expect.poll(() => icons).toContain('https://maplestory.io/api/MCW/1/item/1082003/icon');
   // and it is still there after a reload
   await page.reload();
   await expect(page.locator('#bookTable tbody tr', { hasText: 'Lemona' })).toHaveCount(1);

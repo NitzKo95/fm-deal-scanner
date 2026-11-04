@@ -5,5 +5,7 @@ test-results/
 playwright-report/
 # copied from node_modules by scripts/copy-ocr-assets.mjs
 public/ocr/
+# fetched from maplestory.io by scripts/fetch-items.ts (npm run items)
+public/items.json
 .DS_Store
 *.log
