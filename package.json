@@ -1,0 +1,38 @@
+{
+  "name": "fm-deal-scanner",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Reads MapleStory Classic World player shops off your screen and flags listings under their usual price.",
+  "type": "module",
+  "scripts": {
+    "predev": "node scripts/copy-ocr-assets.mjs",
+    "dev": "vite",
+    "prebuild": "node scripts/copy-ocr-assets.mjs",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "bench": "vitest run -c vitest.ocr.config.ts",
+    "record-ocr": "vite-node scripts/record-ocr.ts",
+    "test:e2e": "playwright test",
+    "check": "npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "tesseract.js": "5.1.1",
+    "@tesseract.js-data/eng": "1.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "^22.10.0",
+    "@types/pngjs": "^6.0.5",
+    "happy-dom": "^20.14.6",
+    "pngjs": "^7.0.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.7",
+    "vitest": "^3.2.7"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
