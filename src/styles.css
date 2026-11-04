@@ -1,0 +1,259 @@
+/* Layout: a trading console. The open shop leads on the left with deals and rules beside it;
+   the price book and data run full width below. One column under 1060px. */
+:root {
+  --bg: #edf2f8;
+  --panel: #ffffff;
+  --panel-q: #f6f9fc;
+  --panel-2: #f2f6fb;
+  --ink: #1a2433;
+  --muted: #5b6a7e;
+  --line: #d4deea;
+  --accent: #b97c06;
+  --accent-soft: #fbefd2;
+  --accent-ink: #2b1d00;
+  --deal: #1b8048;
+  --deal-bg: #e2f4e8;
+  --on-deal: #ffffff;
+  --high: #ad3d2b;
+  --high-bg: #fae6e1;
+  --new: #3f659c;
+  --new-bg: #e3ecf8;
+  --sold: #97a2b2;
+  --focus: #2f6fd1;
+  --shadow: 0 1px 2px rgba(20, 35, 60, .06), 0 6px 18px rgba(20, 35, 60, .06);
+  --f-display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+  --f-body: "Nunito Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1520; --panel: #162030; --panel-q: #121b29; --panel-2: #1b2739; --ink: #e5edf7; --muted: #92a1b5; --line: #26344a;
+    --accent: #f0b43a; --accent-soft: #3a2c0c; --accent-ink: #1e1400;
+    --deal: #4dcb86; --deal-bg: #11301f; --on-deal: #062414; --high: #f08b77; --high-bg: #3a1d18; --new: #92b2e8; --new-bg: #172741;
+    --sold: #5f6c7f; --focus: #7fb0ff; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1520; --panel: #162030; --panel-q: #121b29; --panel-2: #1b2739; --ink: #e5edf7; --muted: #92a1b5; --line: #26344a;
+  --accent: #f0b43a; --accent-soft: #3a2c0c; --accent-ink: #1e1400;
+  --deal: #4dcb86; --deal-bg: #11301f; --on-deal: #062414; --high: #f08b77; --high-bg: #3a1d18; --new: #92b2e8; --new-bg: #172741;
+  --sold: #5f6c7f; --focus: #7fb0ff; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 15px/1.5 var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+}
+[hidden] { display: none !important; }
+h1, h2, h3 { font-family: var(--f-display); margin: 0; line-height: 1.15; text-wrap: balance; }
+h2 { font-size: 1.2rem; font-weight: 700; }
+h3 { font-size: 1rem; font-weight: 700; }
+.num, td.n, th.n { font-variant-numeric: tabular-nums; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* Header: brand on the left, the capture controls on the right, status under them */
+.top { max-width: 1320px; margin: 0 auto 18px; display: grid; gap: 10px; }
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.coin {
+  width: 38px; height: 38px; border-radius: 50%; flex: none;
+  background: radial-gradient(circle at 35% 30%, #ffe6a1 0 18%, #f2b72f 38%, #b97c06 100%);
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,.18), 0 1px 0 rgba(255,255,255,.4);
+  display: grid; place-items: center; color: #6a4500; font: 800 16px/1 var(--f-display);
+}
+.brand h1 { font-size: 1.75rem; font-weight: 800; }
+.brand p { margin: 0; color: var(--muted); font-size: .88rem; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn {
+  border: 1px solid var(--line); background: var(--panel); border-radius: 9px;
+  padding: 8px 14px; cursor: pointer; font-weight: 700; font-size: .92rem; line-height: 1.3;
+}
+.btn:hover:not(:disabled) { border-color: var(--muted); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover:not(:disabled) { filter: brightness(1.06); border-color: var(--accent); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+.btn.ghost:hover:not(:disabled) { color: var(--ink); border-color: var(--line); }
+.btn.small { padding: 4px 10px; font-size: .82rem; }
+.toggle { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: .9rem; padding: 0 4px; cursor: pointer; color: var(--muted); }
+.filebtn { position: relative; overflow: hidden; }
+.filebtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.statusrow { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; }
+.status {
+  display: inline-flex; align-items: center; gap: 8px; width: fit-content; max-width: 100%;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
+  padding: 5px 12px 5px 10px; font-size: .88rem; color: var(--muted);
+}
+.status .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--sold); flex: none; }
+.status[data-state="watching"] .dot { background: var(--new); }
+.status[data-state="shop"] .dot { background: var(--deal); box-shadow: 0 0 0 3px var(--deal-bg); }
+.status[data-state="error"] .dot { background: var(--high); }
+.status[data-state="busy"] .dot { background: var(--accent); }
+.status b { color: var(--ink); font-weight: 700; }
+.diag { font: .76rem/1.4 ui-monospace, "SF Mono", Menlo, monospace; color: var(--muted); }
+
+/* Page grid: the open shop leads; deals and rules sit beside it; the price book and data run full width */
+.grid {
+  max-width: 1320px; margin: 0 auto; display: grid; gap: 16px; align-items: start;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  grid-template-areas: "shop side" "book book" "data data";
+}
+.a-shop { grid-area: shop; } .a-side { grid-area: side; } .a-book { grid-area: book; } .a-data { grid-area: data; }
+.side { display: grid; gap: 16px; align-content: start; min-width: 0; }
+@media (max-width: 1060px) {
+  .grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "shop" "side" "book" "data"; }
+}
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; min-width: 0; }
+.panel.lead { box-shadow: var(--shadow); }
+.panel.quiet { background: var(--panel-q); }
+.panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px 12px; flex-wrap: wrap; padding: 14px 18px 10px; }
+.panel-head .meta { color: var(--muted); font-size: .86rem; }
+.panel-body { padding: 0 18px 18px; }
+.empty { color: var(--muted); font-size: .92rem; margin: 8px 0 2px; }
+
+/* Deal banner: the one loud thing on the page */
+.banner {
+  margin: 0 18px 12px; border-radius: 12px; padding: 12px 16px;
+  background: var(--deal); color: var(--on-deal);
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 18px;
+}
+.banner .label { font-size: .8rem; font-weight: 700; opacity: .85; }
+.banner .what { font: 700 1.25rem/1.2 var(--f-display); display: flex; align-items: center; gap: 8px; min-width: 0; }
+.banner .math { font-size: .88rem; opacity: .9; }
+.banner .profit { grid-column: 2; grid-row: 1 / span 3; text-align: right; font: 800 2rem/1 var(--f-display); font-variant-numeric: tabular-nums; }
+.banner .profit small { display: block; font: 600 .74rem/1.4 var(--f-body); opacity: .85; }
+.banner .ico { background: rgba(255,255,255,.22); }
+.banner.flash { animation: flash 1.2s ease-out 1; }
+@keyframes flash { 0% { box-shadow: 0 0 0 0 var(--deal); } 100% { box-shadow: 0 0 0 14px transparent; } }
+@media (prefers-reduced-motion: reduce) { .banner.flash { animation: none; } }
+
+/* Tables */
+.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+th, td { text-align: left; padding: 8px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; vertical-align: middle; }
+th { font-size: .8rem; color: var(--muted); font-weight: 700; background: var(--panel); position: sticky; top: 0; z-index: 1; padding-block: 6px; }
+th.n, td.n { text-align: right; }
+td.name { white-space: normal; min-width: 180px; }
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { color: var(--ink); }
+th .arrow { font-size: .7rem; margin-left: 3px; }
+tbody tr:last-child td { border-bottom: 0; }
+tr.v-deal td { background: var(--deal-bg); }
+tr.v-deal td:first-child { box-shadow: inset 3px 0 0 var(--deal); }
+tr.v-sold td { color: var(--sold); }
+tr.v-sold .nm-n { text-decoration: line-through; }
+.chip { display: inline-block; border-radius: 999px; padding: 1px 10px; font: 700 .76rem/1.7 var(--f-body); }
+.chip.deal { background: var(--deal); color: var(--on-deal); }
+.chip.fair { background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); }
+.chip.high { background: var(--high-bg); color: var(--high); }
+.chip.new { background: var(--new-bg); color: var(--new); }
+.chip.sold { background: var(--panel-2); color: var(--sold); }
+.chip.unsure { background: var(--accent-soft); color: var(--accent); cursor: help; }
+.pos { color: var(--deal); font-weight: 700; }
+.neg { color: var(--high); }
+.dim { color: var(--muted); }
+.cellinput {
+  width: 84px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2);
+  font-size: .88rem; text-align: right; font-variant-numeric: tabular-nums;
+}
+.x { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 1rem; padding: 2px 6px; border-radius: 6px; }
+.x:hover { color: var(--high); background: var(--high-bg); }
+
+/* Item cell: icon, then the name over its listing, the way the game's shop window shows it */
+.nm { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.nm-t { display: grid; min-width: 0; }
+.nm-n { font-weight: 700; line-height: 1.25; }
+.cnt { color: var(--muted); font-weight: 600; font-size: .84rem; }
+.sub { display: block; font-size: .78rem; font-weight: 400; color: var(--muted); line-height: 1.3; }
+.pip .nm-n { min-width: 0; flex: 1; }
+.ico { flex: none; width: 28px; height: 28px; display: inline-grid; place-items: center; vertical-align: middle; border-radius: 7px; background: var(--panel-2); font-size: 15px; line-height: 1; }
+.ico img { max-width: 28px; max-height: 28px; object-fit: contain; }
+.ico:empty::before { content: attr(data-e); }
+.ico.unk { color: var(--sold); font: 700 13px/1 var(--f-body); }
+.warn { color: var(--accent); cursor: help; }
+
+/* The last hovered item's stats */
+.hovered { margin: 0 18px 12px; padding: 8px 12px; border-radius: 10px; background: var(--new-bg); color: var(--ink); font-size: .88rem; display: flex; gap: 8px; align-items: center; }
+.hovered b { color: var(--new); }
+.pip .hovered { margin: 0 0 8px; padding: 6px 8px; font-size: .8rem; }
+
+/* What the scanner sees */
+.seen { display: flex; gap: 12px; align-items: flex-start; padding: 0 18px 12px; }
+.seen canvas { max-width: 160px; max-height: 120px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); }
+.seen p { margin: 0; font-size: .84rem; color: var(--muted); max-width: 46ch; }
+
+/* Deals log */
+.deals { list-style: none; margin: 0; padding: 0; display: grid; }
+.deals li { display: grid; grid-template-columns: 4.6em minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.deals li:last-child { border-bottom: 0; }
+.deals .t { font-size: .8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.deals .w { min-width: 0; }
+.deals .p { color: var(--deal); font: 800 1.05rem/1 var(--f-display); font-variant-numeric: tabular-nums; }
+.dealscroll { max-height: 330px; overflow: auto; }
+
+/* Price book */
+.searchbox { padding: 7px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel-2); min-width: 0; width: 240px; max-width: 100%; }
+.booktable { max-height: 480px; overflow: auto; }
+
+/* Rules: folded away by default, with the current numbers in the summary */
+details.rules > summary { cursor: pointer; list-style: none; padding-bottom: 14px; border-radius: 14px; }
+details.rules > summary::-webkit-details-marker { display: none; }
+details.rules > summary h2::before { content: "▸"; display: inline-block; width: 1em; color: var(--muted); font-size: .85em; transition: transform .15s ease; }
+details.rules[open] > summary { padding-bottom: 10px; }
+details.rules[open] > summary h2::before { transform: rotate(90deg); }
+details.rules > summary:hover h2 { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { details.rules > summary h2::before { transition: none; } }
+.settings { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px 16px; }
+.field { display: grid; gap: 4px; font-size: .88rem; align-content: start; }
+.field > span { font-weight: 700; }
+.field small { color: var(--muted); font-size: .78rem; line-height: 1.35; }
+.field input, .field select { width: 100%; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.field > span em { font-style: normal; font-weight: 400; color: var(--muted); }
+
+/* Prices and backup */
+.datagrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 18px 28px; }
+.datagrid > div { display: grid; gap: 8px; align-content: start; min-width: 0; }
+textarea { width: 100%; min-height: 92px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); font: .86rem/1.5 var(--f-body); resize: vertical; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.note { font-size: .84rem; color: var(--muted); margin: 0; max-width: 72ch; }
+.note:empty { display: none; }
+.datagrid p { margin: 0; }
+.marketline { font-size: .92rem; }
+.marketline b { font-weight: 700; }
+
+/* Calibration modal */
+.modal { position: fixed; inset: 0; background: rgba(8, 14, 24, .62); display: grid; place-items: center; z-index: 50; padding: 16px; }
+.modal-card { background: var(--panel); border-radius: 16px; border: 1px solid var(--line); width: min(1100px, 100%); max-height: calc(100vh - 32px); overflow: auto; padding: 18px; display: grid; gap: 12px; box-shadow: var(--shadow); }
+.modal-card p { margin: 0; color: var(--muted); max-width: 75ch; }
+.stage { position: relative; overflow: auto; border-radius: 10px; border: 1px solid var(--line); background: #000; }
+.stage canvas { display: block; max-width: 100%; height: auto; cursor: crosshair; touch-action: none; }
+.calibout { margin: 0; font: .84rem/1.5 ui-monospace, "SF Mono", Menlo, monospace; background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px; padding: 10px; white-space: pre-wrap; min-height: 2.6em; }
+
+/* Pop-out overlay (Document Picture-in-Picture): one fixed-width table that never scrolls sideways */
+body.pip { padding: 10px; font-size: 13px; }
+.pip .ph { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.pip .ph b { font: 700 1rem/1.2 var(--f-display); }
+.pip .ph span { color: var(--muted); font-size: .82rem; }
+.pip table { font-size: .84rem; table-layout: fixed; }
+.pip th, .pip td { padding: 5px 4px; }
+.pip td.name { min-width: 0; }
+.pip .nm { gap: 6px; }
+.pip .nm-n { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.pip .ico { width: 20px; height: 20px; font-size: 12px; border-radius: 5px; }
+.pip .ico img { max-width: 20px; max-height: 20px; }
+.pip .chip { padding: 0 7px; font-size: .72rem; }
+.pip .banner { margin: 0 0 8px; padding: 8px 12px; gap: 0 10px; }
+.pip .banner .what { font-size: 1rem; }
+.pip .banner .math { font-size: .78rem; }
+.pip .banner .profit { font-size: 1.4rem; }
+
+.footnote { max-width: 1400px; margin: 28px auto 0; font-size: .78rem; color: var(--muted); text-align: center; }
+.footnote a { color: inherit; }

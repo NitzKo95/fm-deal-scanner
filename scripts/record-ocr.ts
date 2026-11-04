@@ -1,5 +1,5 @@
 // Records what the text reader makes of a fixture screenshot, for the parser tests:
-//   npx vite-node scripts/record-ocr.ts <image in tests/fixtures/img> [<image> ...]
+//   npm run record-ocr -- <image in tests/fixtures/img> [<image> ...]
 // Each image goes through the scanner's own find-crop-prepare steps; the reader's lines for the list
 // and for the tooltip are written to tests/fixtures/ocr/<name>.{list,tooltip}.lines.json.
 import { writeFileSync } from 'node:fs';
@@ -12,7 +12,7 @@ import { engine } from '../tests/helpers/market';
 import { nodeOcr, pixelsAdapter } from '../tests/helpers/pipeline';
 
 const files = process.argv.slice(2);
-if (!files.length) { console.error('usage: vite-node scripts/record-ocr.ts <image.png> ...'); process.exit(1); }
+if (!files.length) { console.error('usage: npm run record-ocr -- <image.png> ...'); process.exit(1); }
 
 const ocr = await nodeOcr();
 for (const file of files) {

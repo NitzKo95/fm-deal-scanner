@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Reads MapleStory Classic World player shops off your screen and flags listings under their usual price.">
+<title>FM Deal Scanner</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%23f0b43a'/%3E%3Ctext x='16' y='22' font-size='17' font-family='Arial' font-weight='700' text-anchor='middle' fill='%232b1d00'%3EM%3C/text%3E%3C/svg%3E">
+<script type="module" src="/src/main.ts"></script>
+</head>
+<body>
+<header class="top">
+  <div class="bar">
+    <div class="brand">
+      <div class="coin" aria-hidden="true">M</div>
+      <div>
+        <h1>FM Deal Scanner</h1>
+        <p>Reads player shops off your screen and flags anything under its usual price.</p>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn primary" id="btnStart">Start capture</button>
+      <button class="btn" id="btnStop" hidden>Stop</button>
+      <button class="btn" id="btnArea" disabled title="Only needed if the scanner can't find the shop list on its own">Mark shop area</button>
+      <button class="btn" id="btnPip" disabled title="Floats a small always-on-top window over the game">Pop out overlay</button>
+      <span class="btn ghost filebtn">Test with a screenshot<input type="file" id="fileShot" accept="image/*"></span>
+      <label class="toggle"><input type="checkbox" id="optSound" checked> Sound</label>
+    </div>
+  </div>
+  <div class="statusrow">
+    <div class="status" id="status" data-state="idle" role="status" aria-live="polite"><span class="dot"></span><span id="statusText">Not capturing. Press <b>Start capture</b> and pick the MapleStory window.</span></div>
+    <div class="diag" id="diag" hidden></div>
+  </div>
+</header>
+
+<main class="grid">
+  <section class="panel lead a-shop" aria-labelledby="hShop">
+    <div class="panel-head">
+      <h2 id="hShop">Open shop</h2>
+      <span class="meta" id="shopMeta">No shop open</span>
+    </div>
+    <div class="banner" id="dealBanner" hidden>
+      <span class="label" id="dealLabel">Deal</span>
+      <span class="what" id="dealWhat"></span>
+      <span class="math" id="dealMath"></span>
+      <span class="profit" id="dealProfit"></span>
+    </div>
+    <p class="hovered" id="hoverLine" hidden></p>
+    <div class="seen" id="seenWrap" hidden>
+      <canvas id="seenCanvas" width="160" height="120" aria-label="The area the scanner reads"></canvas>
+      <p>This is the part of the screen being read. If it doesn't show the item names and prices, use <b>Mark shop area</b>.</p>
+    </div>
+    <div class="panel-body">
+      <div class="tablewrap">
+        <table id="shopTable">
+          <thead><tr>
+            <th>Item</th>
+            <th class="n">Each</th>
+            <th class="n">Usual</th>
+            <th class="n">vs usual</th>
+            <th class="n" title="If you relist it at the usual price, after the sales fee">Profit</th>
+            <th></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="empty" id="shopEmpty">Open a player shop or hired merchant in the game. Its items show up here within a second.</p>
+    </div>
+  </section>
+
+  <div class="side a-side">
+  <section class="panel lead" aria-labelledby="hDeals">
+    <div class="panel-head">
+      <h2 id="hDeals">Deals this session</h2>
+      <button class="btn small" id="btnClearDeals">Clear</button>
+    </div>
+    <div class="panel-body">
+      <div class="dealscroll"><ul class="deals" id="dealList"></ul></div>
+      <p class="empty" id="dealsEmpty">Nothing yet. Deals land here with the time you saw them.</p>
+    </div>
+  </section>
+
+  <details class="panel quiet rules" id="rulesBox">
+    <summary class="panel-head"><h2 id="hSet">Rules</h2><span class="meta" id="rulesSum"></span></summary>
+    <div class="panel-body">
+      <div class="settings">
+        <label class="field"><span>Discount needed <em>% under usual</em></span><input id="setDiscount" type="number" min="5" max="90" step="1"></label>
+        <label class="field"><span>Minimum profit <em>mesos</em></span><input id="setMinProfit" type="number" min="0" step="500"></label>
+        <label class="field"><span>Sales fee <em>%</em></span><input id="setFee" type="number" min="0" max="20" step="0.5"></label>
+        <label class="field"><span>Market prices</span>
+          <select id="setMarket"><option value="on">Use them</option><option value="off">Ignore them</option></select></label>
+        <label class="field"><span>Usual from sightings</span>
+          <select id="setBase"><option value="median">Middle price</option><option value="q25">Lower quarter</option></select></label>
+        <label class="field"><span>Sightings to trust</span><input id="setMinSeen" type="number" min="1" max="50" step="1"></label>
+        <label class="field"><span>Shop area</span>
+          <select id="setArea"><option value="auto">Find it automatically</option><option value="manual">Use the area I marked</option></select></label>
+        <label class="field"><span>Read stats on hover</span>
+          <select id="setStats"><option value="on">Yes</option><option value="off">No</option></select></label>
+        <label class="field" title="How much one point above or below the item's base moves its value. Weapon and magic attack count fully, STR, DEX, INT and LUK half."><span>Each stat point <em>% of value</em></span><input id="setStatPct" type="number" min="0" max="50" step="1"></label>
+        <label class="field" title="A used upgrade slot is counted as this many stat points lost, since a clean item can still be scrolled."><span>Each used slot <em>stat points</em></span><input id="setSlotWorth" type="number" min="0" max="5" step="0.5"></label>
+        <label class="field"><span>Check every <em>seconds</em></span><input id="setInterval" type="number" min="0.4" max="5" step="0.1"></label>
+      </div>
+    </div>
+  </details>
+  </div>
+
+  <section class="panel lead a-book" aria-labelledby="hBook">
+    <div class="panel-head">
+      <h2 id="hBook">Price book</h2>
+      <input class="searchbox" id="bookSearch" type="search" placeholder="Find any item" aria-label="Find any item">
+    </div>
+    <div class="panel-body">
+      <div class="booktable">
+        <table id="bookTable">
+          <thead><tr>
+            <th class="sortable" data-col="name">Item</th>
+            <th class="sortable n" data-col="n">Seen</th>
+            <th class="sortable n" data-col="usual">Usual</th>
+            <th class="sortable n" data-col="low">Lowest</th>
+            <th class="sortable n" data-col="last">Last seen</th>
+            <th class="n">Your price</th>
+            <th class="n">Buy under</th>
+            <th></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="empty" id="bookEmpty">Empty. It fills as you open shops, or paste prices below.</p>
+      <p class="note" id="bookHint" style="margin-top:10px"></p>
+      <p class="note" style="margin-top:6px">Usual is the market price unless tagged <b>you</b> (your price) or <b>seen</b> (your own sightings were lower). The number under it is the tracker's sales count: few sales means slow to resell. Buy under alerts at or below that price, whatever the usual price.</p>
+    </div>
+  </section>
+
+  <section class="panel quiet a-data" aria-labelledby="hData">
+    <div class="panel-head"><h2 id="hData">Prices and backup</h2></div>
+    <div class="panel-body">
+      <div class="datagrid">
+        <div>
+          <h3>Market prices</h3>
+          <p class="marketline" id="marketAge">None loaded yet.</p>
+          <div class="row">
+            <span class="btn filebtn">Update market prices<input type="file" id="fileMarket" accept=".html,.htm,text/html"></span>
+          </div>
+          <p class="note" id="marketMsg"></p>
+          <p class="note">On the price tracker press ⌘S, save the page as <b>Webpage, HTML Only</b> (or Complete), and pick that .html file. The prices stay in this browser.</p>
+        </div>
+        <div>
+          <h3><label for="pasteBox">Your prices</label></h3>
+          <textarea id="pasteBox" placeholder="One item per line, price each:&#10;Cape INT Scroll: Lesser, 80k&#10;Tobi Throwing Stars = 1.8m"></textarea>
+          <div class="row">
+            <button class="btn" id="btnPaste">Add as your prices</button>
+          </div>
+          <p class="note" id="pasteMsg"></p>
+        </div>
+        <div>
+          <h3>Backup</h3>
+          <p class="note">Everything lives in this browser only.</p>
+          <div class="row">
+            <button class="btn" id="btnExport">Export</button>
+            <span class="btn filebtn">Import<input type="file" id="fileImport" accept="application/json,.json"></span>
+            <button class="btn ghost" id="btnWipe">Clear all sightings</button>
+          </div>
+          <p class="note" id="dataMsg"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+
+<div class="modal" id="calib" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="hCalib">
+    <h2 id="hCalib">Mark the shop's item list</h2>
+    <p>Open a player shop or hired merchant in the game, then drag a box over the item names and prices. Leave out the item icons and the scroll bar. You only need this if the scanner can't find the list on its own. A marked area stays put, so mark it again after resizing the game.</p>
+    <p>If you shared your whole screen, the picture shows whatever was on screen at that moment. Press <b>Grab in 5 s</b>, switch to the game with a shop open, then come back here.</p>
+    <div class="stage"><canvas id="calibCanvas" width="960" height="540"></canvas></div>
+    <div class="row">
+      <button class="btn" id="calibLater">Grab in 5 s</button>
+      <button class="btn" id="calibGrab">Grab now</button>
+      <button class="btn" id="calibTest">Test read</button>
+      <button class="btn primary" id="calibSave">Save area</button>
+      <button class="btn ghost" id="calibCancel">Cancel</button>
+    </div>
+    <pre class="calibout" id="calibOut">Drag on the picture to mark the area.</pre>
+  </div>
+</div>
+
+<p class="footnote">Item pictures from <a href="https://maplestory.io" rel="noreferrer">maplestory.io</a>. Not affiliated with Nexon. <a href="https://github.com/barelimelech94/fm-deal-scanner" rel="noreferrer">Source</a></p>
+</body>
+</html>

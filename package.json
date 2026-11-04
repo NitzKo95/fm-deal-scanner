@@ -14,23 +14,26 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "bench": "vitest run -c vitest.ocr.config.ts",
-    "record-ocr": "vite-node scripts/record-ocr.ts",
+    "record-ocr": "tsx scripts/record-ocr.ts",
     "test:e2e": "playwright test",
     "check": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
-    "tesseract.js": "5.1.1",
-    "@tesseract.js-data/eng": "1.0.0"
+    "@fontsource/baloo-2": "^5.3.0",
+    "@fontsource/nunito-sans": "^5.3.0",
+    "@tesseract.js-data/eng": "1.0.0",
+    "tesseract.js": "5.1.1"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
     "@types/node": "^22.10.0",
     "@types/pngjs": "^6.0.5",
-    "happy-dom": "^20.14.6",
+    "happy-dom": "^21.0.4",
     "pngjs": "^7.0.0",
+    "tsx": "^4.23.15",
     "typescript": "~5.9.3",
     "vite": "^7.3.7",
-    "vitest": "^3.2.7"
+    "vitest": "^5.1.0"
   },
   "engines": {
     "node": ">=20"
