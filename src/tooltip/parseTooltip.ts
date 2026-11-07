@@ -39,7 +39,7 @@ const toDigits = (s: string) => s.replace(/[Gb]/g, '6').replace(/[Oo]/g, '0').re
 export function statNumbers(value: string): { total: number; base: number } | null {
   // the base can come out as letters ("(ED -2)" for "(60 -2)"); the difference then still tells it
   // a "+" is sometimes read as another symbol ("#1" for "+1")
-  const m = toDigits(value).replace(/^[^\d+\-\s]+/, '').match(/^\s*\+?\s*(\d+)\s*(?:\(\s*([^\s()+-]*)\s*([+-])?\s*(\d+)?\s*\)?)?/);
+  const m = toDigits(value.replace(/^[^\w+\-\s]+/, '')).match(/^\s*\+?\s*(\d+)\s*(?:\(\s*([^\s()+-]*)\s*([+-])?\s*(\d+)?\s*\)?)?/);
   if (!m) return null;
   const total = +m[1]!, base = m[2] && /^\d+$/.test(m[2]) ? +m[2] : null, sign = m[3] ?? null, mod = m[4] != null ? +m[4] : null;
   // copies differ from the base by a few points; "(602)" for "(60 2)" is not a base of 602
