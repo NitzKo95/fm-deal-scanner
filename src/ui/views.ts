@@ -4,7 +4,7 @@ import type { Engine } from '../engine';
 import { iconUrl } from '../icons';
 import { ago, cap, clock, DAY, esc, fmt, fmtEach, fmtShort, salesTxt, signed } from '../lib/format';
 import { norm, parseAmount } from '../lib/text';
-import type { BookItem, MarketItem, Settings, UsualSource, Verdict } from '../lib/types';
+import type { BookItem, MarketItem, Settings, ShopSortCol, UsualSource, Verdict } from '../lib/types';
 import { isRough, marketTip, type MarketIndex } from '../market/marketIndex';
 import { usualPrice } from '../pricing/evaluate';
 import { sightingStats } from '../pricing/priceBook';
@@ -37,9 +37,43 @@ export function dealLine(d: DisplayRow, market: MarketIndex): DealLine {
   return { name: d.name + (d.truncated ? '…' : ''), listing, why, profit: d.profit != null ? signed(d.profit) : '' };
 }
 
+export interface ShopSort { col: ShopSortCol; dir: 1 | -1 }
+export const BEST_FIRST: ShopSort = { col: 'best', dir: 1 };
+export const SHOP_SORT_COLS: readonly ShopSortCol[] = ['best', 'name', 'unit', 'usual', 'pct', 'profit'];
+
+/** The way a column starts when first clicked: most profit first, biggest discount first, cheapest first. */
+const FIRST_DIR: Record<ShopSortCol, 1 | -1> = { best: 1, name: 1, unit: 1, usual: -1, pct: 1, profit: -1 };
+
+/** The sort after a click on a column: the same column flips, another starts in its natural direction. */
+export const nextSort = (cur: ShopSort, col: ShopSortCol): ShopSort =>
+  col === cur.col ? { col, dir: (-cur.dir) as 1 | -1 } : { col, dir: FIRST_DIR[col] };
+
+/** A saved sort, checked: anything unknown is the default. */
+export const cleanSort = (col: unknown, dir: unknown): ShopSort =>
+  SHOP_SORT_COLS.includes(col as ShopSortCol) ? { col: col as ShopSortCol, dir: dir === -1 ? -1 : 1 } : BEST_FIRST;
+
 /** Deals first, then by how far under the usual price. */
-export const sortRows = (rows: DisplayRow[]): DisplayRow[] =>
-  rows.sort((a, b) => ORDER[a.verdict] - ORDER[b.verdict] || (a.pct ?? 9) - (b.pct ?? 9));
+const bestFirst = (a: DisplayRow, b: DisplayRow): number => ORDER[a.verdict] - ORDER[b.verdict] || (a.pct ?? 9) - (b.pct ?? 9);
+
+const cell = (r: DisplayRow, col: ShopSortCol): number | string | null =>
+  col === 'name' ? r.name : col === 'unit' ? r.unit : col === 'usual' ? r.usual : col === 'pct' ? r.pct : col === 'profit' ? r.profit : null;
+
+/**
+ * Orders the shop's rows. By default deals come first, then by how far under the usual price. By a column,
+ * sold rows still come last (they can't be bought), so do rows with nothing in that column (no usual price,
+ * so no profit), whichever way it runs; ties fall back to the default order.
+ */
+export function sortRows(rows: DisplayRow[], sort: ShopSort = BEST_FIRST): DisplayRow[] {
+  if (sort.col === 'best') return rows.sort(bestFirst);
+  return rows.sort((a, b) => {
+    const sold = (a.verdict === 'sold' ? 1 : 0) - (b.verdict === 'sold' ? 1 : 0);
+    if (sold) return sold;
+    const x = cell(a, sort.col), y = cell(b, sort.col);
+    if (x == null || y == null) return x == null && y == null ? bestFirst(a, b) : x == null ? 1 : -1;
+    const d = typeof x === 'string' ? x.localeCompare(y as string) : x - (y as number);
+    return d ? d * sort.dir : bestFirst(a, b);
+  });
+}
 
 const pctCell = (pct: number | null) => ({
   text: pct == null ? '–' : `${pct > 0 ? '+' : ''}${Math.round(pct * 100)}%`,

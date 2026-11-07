@@ -8,7 +8,9 @@ Reads MapleStory Classic World player shops off your screen and flags listings u
 2. Load market prices once: on [meso.watch](https://meso.watch), once your world's price table has loaded, save the page
    (⌘S) as **Webpage, Complete** and pick that .html file under **Prices and backup**.
 3. Open shops in the game. Listings show up within a second; deals chime and land in **Deals this session**.
-4. **Pop out overlay** keeps a small always-on-top window over the game.
+4. Click a column header on the open shop to order by it: **Profit** puts the most profitable listing first (click again
+   to flip), and **Best first** goes back to deals first. The choice is kept for the next shop, and the overlay follows it.
+5. **Pop out overlay** keeps a small always-on-top window over the game.
 
 Hover an item in a shop and its stats are read from the tooltip: points above or below the item's base, and
 used upgrade slots, move its usual price up or down (tune how much under **Rules**). This needs a usual price

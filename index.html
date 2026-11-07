@@ -37,7 +37,7 @@
   <section class="panel lead a-shop" aria-labelledby="hShop">
     <div class="panel-head">
       <h2 id="hShop">Open shop</h2>
-      <span class="meta" id="shopMeta">No shop open</span>
+      <span class="headtools"><button class="btn small" id="shopSortReset" hidden title="Order by deals first again">Best first</button><span class="meta" id="shopMeta">No shop open</span></span>
     </div>
     <div class="banner" id="dealBanner" hidden>
       <span class="label" id="dealLabel">Deal</span>
@@ -54,11 +54,11 @@
       <div class="tablewrap">
         <table id="shopTable">
           <thead><tr>
-            <th>Item</th>
-            <th class="n">Each</th>
-            <th class="n">Usual</th>
-            <th class="n">vs usual</th>
-            <th class="n" title="If you relist it at the usual price, after the sales fee">Profit</th>
+            <th class="sortable" data-col="name" tabindex="0">Item</th>
+            <th class="sortable n" data-col="unit" tabindex="0" title="Price each">Each</th>
+            <th class="sortable n" data-col="usual" tabindex="0">Usual</th>
+            <th class="sortable n" data-col="pct" tabindex="0" title="How far under (or over) the usual price">vs usual</th>
+            <th class="sortable n" data-col="profit" tabindex="0" title="If you relist it at the usual price, after the sales fee. Click to put the most profitable first.">Profit</th>
             <th></th>
           </tr></thead>
           <tbody></tbody>
