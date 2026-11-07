@@ -283,6 +283,52 @@ test('adds the items you hover to the appraisal, and only while scanning', async
   expect(errors).toEqual([]);
 });
 
+test('orders the open shop by a column, most profit first, and remembers it', async ({ page }) => {
+  const { errors } = await open(page);
+  await page.setInputFiles('#fileMarket', { name: 'tracker.html', mimeType: 'text/html', buffer: Buffer.from(TRACKER) });
+  const shot = () => screenFile('shop.png', placeOn(scaleBy(loadPng('shop-list.png'), 0.5), 1440, 900, 400, 200));
+  const names = async () => (await shopNames(page)).map((n) => n.trim());
+  await loadShot(page, shot());
+  const best = ['Dark Guardian', 'Bronze Chain Boots', 'Lemona', 'Bronze Chain Boots', 'Shoes Speed Scroll: Chaos', 'Cape INT Scroll: Lesser'];
+  expect(await names()).toEqual(best);
+  await expect(page.locator('#shopSortReset')).toBeHidden();
+
+  // price each, cheapest first, then flipped
+  await page.click('#shopTable th[data-col="unit"]');
+  expect(await names()).toEqual(['Bronze Chain Boots', 'Bronze Chain Boots', 'Lemona', 'Shoes Speed Scroll: Chaos', 'Dark Guardian', 'Cape INT Scroll: Lesser']);
+  await expect(page.locator('#shopTable th[data-col="unit"]')).toHaveAttribute('aria-sort', 'ascending');
+  await expect(page.locator('#shopSortReset')).toBeVisible();
+  await page.click('#shopTable th[data-col="unit"]');
+  expect(await names()).toEqual(['Cape INT Scroll: Lesser', 'Dark Guardian', 'Shoes Speed Scroll: Chaos', 'Lemona', 'Bronze Chain Boots', 'Bronze Chain Boots']);
+  await expect(page.locator('#shopTable th[data-col="unit"]')).toHaveAttribute('aria-sort', 'descending');
+
+  // most profit first (by keyboard, too)
+  await page.focus('#shopTable th[data-col="profit"]');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#shopTable th[data-col="profit"]')).toHaveAttribute('aria-sort', 'descending');
+  await expect(page.locator('#shopTable th[data-col="unit"]')).toHaveAttribute('aria-sort', 'none');
+  expect(await names()).toEqual(['Dark Guardian', 'Bronze Chain Boots', 'Lemona', 'Bronze Chain Boots', 'Shoes Speed Scroll: Chaos', 'Cape INT Scroll: Lesser']);
+  const profits = (await page.locator('#shopTable tbody tr td:nth-child(5)').allTextContents()).map((s) => Number(s.replace(/[^\d−-]/g, '').replace('−', '-')));
+  expect(profits).toEqual([...profits].sort((a, b) => b - a));
+  await page.click('#shopTable th[data-col="profit"]');
+  expect((await names())[0]).toBe('Cape INT Scroll: Lesser');
+
+  // it is still the order after a reload, for the next shop
+  await page.click('#shopTable th[data-col="profit"]');
+  await page.reload();
+  await expect(page.locator('#shopTable th[data-col="profit"]')).toHaveAttribute('aria-sort', 'descending');
+  await expect(page.locator('#shopSortReset')).toBeVisible();
+  await loadShot(page, shot());
+  expect((await names())[0]).toBe('Dark Guardian');
+
+  // back to deals first
+  await page.click('#shopSortReset');
+  await expect(page.locator('#shopSortReset')).toBeHidden();
+  await expect(page.locator('#shopTable th[aria-sort="descending"], #shopTable th[aria-sort="ascending"]')).toHaveCount(0);
+  expect(await names()).toEqual(best);
+  expect(errors).toEqual([]);
+});
+
 test('fits a phone screen without scrolling sideways', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await open(page);
