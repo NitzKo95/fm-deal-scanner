@@ -127,6 +127,71 @@ test('keeps your data from the single-file scanner', async ({ page }) => {
   await expect(page.locator('#bookTable tbody tr', { hasText: 'Lemona' })).toHaveCount(1);
 });
 
+test('appraises a pile of items typed in, and keeps it', async ({ page }) => {
+  const { errors } = await open(page);
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.setInputFiles('#fileMarket', { name: 'tracker.html', mimeType: 'text/html', buffer: Buffer.from(TRACKER) });
+  await expect(page.locator('#marketMsg')).toContainText('Loaded 7 market prices');
+  await expect(page.locator('#apMeta')).toHaveText('Nothing added yet');
+  await expect(page.locator('#apEmpty')).toBeVisible();
+
+  await page.fill('#apAdd', 'Cape INT Scroll: Lesser x3\nShoes Speed Scroll: Chaos x5\nLemona\nWolbi Throwing Stars x2\nMystery Thing x4');
+  await page.click('#apAddBtn');
+  await expect(page.locator('#apBody tr')).toHaveCount(5);
+  await expect(page.locator('#apMsg')).toHaveText('Added 5 items.');
+  // 3 × 65,000 + 5 × 21,000 + 21,000 + 2 sets × 2,499; the unknown item has no price
+  await expect(page.locator('#apTotal')).toHaveText('325,998');
+  await expect(page.locator('#apMeta')).toHaveText('5 kinds, 15 items');
+  await expect(page.locator('#apWarn')).toContainText('1 item has no price');
+  await expect(page.locator('#apQuote')).toHaveText('5 kinds / 15 items = 325,998 mesos (1 not priced)');
+  await expect(page.locator('#apBody tr', { hasText: 'Wolbi' })).toContainText('priced per set');
+
+  // type a price for the unknown item: it counts, and the warning goes
+  const mystery = page.locator('#apBody tr', { hasText: 'Mystery Thing' });
+  await mystery.locator('input[data-field="price"]').fill('1k');
+  await mystery.locator('input[data-field="price"]').press('Tab');
+  await expect(page.locator('#apTotal')).toHaveText('329,998');
+  await expect(page.locator('#apWarn')).toBeHidden();
+  await expect(page.locator('#apBody tr', { hasText: 'Mystery Thing' }).locator('.chip')).toHaveText('Priced');
+
+  // offer 90% of everything
+  await page.fill('#apBulk', '90');
+  await page.press('#apBulk', 'Tab');
+  await expect(page.locator('#apOffer')).toHaveText('296,998');
+  await expect(page.locator('#apOfferLabel')).toHaveText('Offer at 90%');
+  await expect(page.locator('#apQuote')).toHaveText('5 kinds / 15 items = 296,998 mesos');
+  await page.click('#apCopy');
+  await expect(page.locator('#apMsg')).toHaveText('Copied.');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('5 kinds / 15 items = 296,998 mesos');
+
+  // a skipped line is left out of the total; greedy reads the same without sightings
+  await page.locator('#apBody tr', { hasText: 'Lemona' }).locator('button[data-act="skip"]').click();
+  await expect(page.locator('#apTotal')).toHaveText('308,998');
+  await expect(page.locator('#apMeta')).toHaveText('4 kinds, 14 items, 1 skipped');
+  await page.selectOption('#apMode', 'greedy');
+  await expect(page.locator('#apModeNote')).toContainText('Greedy');
+  await expect(page.locator('#apTotal')).toHaveText('308,998');
+
+  // all of it is still there after a reload
+  await page.reload();
+  await expect(page.locator('#apBody tr')).toHaveCount(5);
+  await expect(page.locator('#apTotal')).toHaveText('308,998');
+  await expect(page.locator('#apMode')).toHaveValue('greedy');
+  await expect(page.locator('#apBulk')).toHaveValue('90');
+  await expect(page.locator('#apBody tr', { hasText: 'Lemona' }).locator('.chip')).toHaveText('Skipped');
+
+  // remove one line, then clear the rest (a second click confirms)
+  await page.locator('#apBody tr', { hasText: 'Mystery Thing' }).locator('button[data-act="del"]').click();
+  await expect(page.locator('#apBody tr')).toHaveCount(4);
+  await page.click('#apClear');
+  await expect(page.locator('#apBody tr')).toHaveCount(4);
+  await page.click('#apClear');
+  await expect(page.locator('#apBody tr')).toHaveCount(0);
+  await expect(page.locator('#apMeta')).toHaveText('Nothing added yet');
+  await expect(page.locator('#apEmpty')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test('fits a phone screen without scrolling sideways', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await open(page);

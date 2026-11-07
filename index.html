@@ -104,6 +104,53 @@
   </details>
   </div>
 
+  <section class="panel lead a-appr" aria-labelledby="hAppr">
+    <div class="panel-head">
+      <h2 id="hAppr">Appraisal</h2>
+      <span class="meta" id="apMeta">Nothing added yet</span>
+    </div>
+    <div class="panel-body">
+      <p class="note">What a pile of items is worth, for when someone asks "how much for all?". Add items below, then copy the quote.</p>
+      <div class="aprow">
+        <label class="field"><span>Prices</span>
+          <select id="apMode"><option value="fair">Fair</option><option value="greedy">Greedy</option></select></label>
+        <label class="field"><span>Offer <em>% of the total</em></span><input id="apBulk" type="number" min="1" max="300" step="1"></label>
+        <p class="note" id="apModeNote"></p>
+      </div>
+      <div class="tablewrap">
+        <table id="apTable" hidden>
+          <thead><tr>
+            <th>Item</th>
+            <th class="n">Qty</th>
+            <th class="n" title="Type a price to use instead of the market's, for this line only">Each</th>
+            <th class="n">Total</th>
+            <th></th>
+            <th></th>
+          </tr></thead>
+          <tbody id="apBody"></tbody>
+        </table>
+      </div>
+      <p class="empty" id="apEmpty">Nothing here yet. Add item names below.</p>
+      <p class="note aprough" id="apWarn" hidden></p>
+      <div class="aptotals">
+        <div><span class="dim">Total</span><b id="apTotal">0</b><small id="apRough"></small></div>
+        <div><span class="dim" id="apOfferLabel">Offer at 100%</span><b id="apOffer">0</b></div>
+      </div>
+      <p class="apquote"><output id="apQuote">Nothing to appraise yet</output></p>
+      <div class="row">
+        <button class="btn primary" id="apCopy" disabled>Copy quote</button>
+        <button class="btn" id="apCopyFull" disabled>Copy full list</button>
+        <button class="btn ghost" id="apClear" disabled>Clear</button>
+      </div>
+      <h3 class="aphead"><label for="apAdd">Add items</label></h3>
+      <textarea id="apAdd" placeholder="One item per line, with how many:&#10;Cape INT Scroll: Lesser x3&#10;Lemona&#10;12 x Red Potion"></textarea>
+      <div class="row">
+        <button class="btn" id="apAddBtn">Add to appraisal</button>
+      </div>
+      <p class="note" id="apMsg"></p>
+    </div>
+  </section>
+
   <section class="panel lead a-book" aria-labelledby="hBook">
     <div class="panel-head">
       <h2 id="hBook">Price book</h2>
@@ -142,7 +189,7 @@
             <span class="btn filebtn">Update market prices<input type="file" id="fileMarket" accept=".html,.htm,text/html"></span>
           </div>
           <p class="note" id="marketMsg"></p>
-          <p class="note">On the price tracker press ⌘S, save the page as <b>Webpage, HTML Only</b> (or Complete), and pick that .html file. The prices stay in this browser.</p>
+          <p class="note">On <a href="https://meso.watch" target="_blank" rel="noreferrer">meso.watch</a>, once your world's price table has loaded, press ⌘S and save the page as <b>Webpage, Complete</b>, then pick that .html file. The prices stay in this browser.</p>
         </div>
         <div>
           <h3><label for="pasteBox">Your prices</label></h3>

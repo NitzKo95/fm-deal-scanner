@@ -5,7 +5,8 @@ Reads MapleStory Classic World player shops off your screen and flags listings u
 **Use it:** https://barelimelech94.github.io/fm-deal-scanner/ (Chrome on a computer)
 
 1. Press **Start capture** and share the MapleStory window.
-2. Load market prices once: save the price tracker's page (⌘S) and pick that file under **Prices and backup**.
+2. Load market prices once: on [meso.watch](https://meso.watch), once your world's price table has loaded, save the page
+   (⌘S) as **Webpage, Complete** and pick that .html file under **Prices and backup**.
 3. Open shops in the game. Listings show up within a second; deals chime and land in **Deals this session**.
 4. **Pop out overlay** keeps a small always-on-top window over the game.
 
@@ -15,6 +16,25 @@ for the item, from the tracker or your own sightings.
 
 Every item gets its picture, and its name is matched, whether or not a tracker page is loaded: the game's own
 item list fills in for items the tracker doesn't list.
+
+### Appraisal
+
+When someone asks "how much for all?", the **Appraisal** panel adds up a pile of items. Type or paste item names
+with a count (`Cape INT Scroll: Lesser x3`), and it totals them from the loaded market prices. Type a price on any
+line to use your own for that line, skip a line you're keeping, and set an **Offer** percentage for taking everything.
+**Copy quote** puts a one-line total on the clipboard for the game's chat; **Copy full list** gives every line.
+
+It reads prices in a mode, and the shop scanner's is only one of them:
+
+- **Cheap** (the shop scanner): your typed price, else the lower of the market price and your own sightings, so only
+  real bargains stand out.
+- **Fair** (appraisal): your typed price, else the market's typical price.
+- **Greedy** (appraisal): your typed price, else the higher of the market's typical price and the upper quarter of your
+  own sightings.
+
+Items with a rough price (fewer than 5 sales, or copies that sell very differently) are counted and marked; items with
+no price are left out of the total and flagged. The modes live in one table in `src/pricing/evaluate.ts`, so a better
+rule for one is a change to one entry.
 
 Everything stays in your browser. Nothing you see or set is sent anywhere; the only outside requests are the
 item pictures from [maplestory.io](https://maplestory.io).
