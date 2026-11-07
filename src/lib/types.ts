@@ -157,7 +157,7 @@ export interface AppraisalEntry {
   price?: number | null;
   /** left out of the total */
   ignored?: boolean;
-  /** the count could not be read off the slot (the mouse or the tooltip covered it): check it */
+  /** a stack added by hovering: its size is not known (the number on a slot is not read), so it counts as 1 until typed */
   unsure?: boolean;
 }
 

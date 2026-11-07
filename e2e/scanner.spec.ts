@@ -212,14 +212,14 @@ test('adds the items you hover to the appraisal, and only while scanning', async
   await expect(page.locator('#apHint')).toContainText('Start the screen capture first');
   await expect(page.locator('#apState')).toHaveText('Paused');
 
-  // a screenshot to scan, then start: the scroll under the mouse is added, with its count flagged as unread
+  // a screenshot to scan, then start: the scroll under the mouse is added, with its count flagged for typing
   await loadShot(page, screen('use-scroll-inventory'));
   await page.click('#apScan');
   await expect(page.locator('#apState')).toHaveText('Scanning: point at your items');
   await expect(rows).toHaveCount(1);
   await expect(rows.first()).toContainText('Overall Armor LUK Scroll: Greater');
   await expect(rows.first().locator('.cellinput.unsure')).toHaveCount(1);
-  await expect(page.locator('#apHint')).toContainText('count not read');
+  await expect(page.locator('#apHint')).toContainText('type how many you have');
   await expect(page.locator('#statusText')).toContainText('Scanning hovers');
 
   // another item, in the trade window: an equip, with its stats

@@ -1,3 +1,4 @@
+import { cleanEntries } from './appraisal/entries';
 import { HoverScanner } from './appraisal/hoverScan';
 import { CaptureFailed, ScreenCapture, type Grab } from './capture/screen';
 import { Ticker } from './capture/ticker';
@@ -469,7 +470,7 @@ export class App {
 
     // backup
     $('btnExport').addEventListener('click', () => {
-      const body = JSON.stringify({ version: 1, exported: new Date().toISOString(), db: this.engine.book, settings: this.settings, region: this.region }, null, 1);
+      const body = JSON.stringify({ version: 1, exported: new Date().toISOString(), db: this.engine.book, settings: this.settings, region: this.region, appraisal: this.appraisal.entries() }, null, 1);
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([body], { type: 'application/json' }));
       a.download = `fm-deal-scanner-${new Date().toISOString().slice(0, 10)}.json`;
@@ -479,13 +480,15 @@ export class App {
     });
     this.onFile('fileImport', async (f) => {
       try {
-        const j = JSON.parse(await f.text()) as { db?: unknown; region?: Region | null; settings?: Partial<Settings> };
+        const j = JSON.parse(await f.text()) as { db?: unknown; region?: Region | null; settings?: Partial<Settings>; appraisal?: unknown };
         if (!isPriceBook(j.db)) throw new Error('not a scanner backup');
         const n = mergeBackup(this.engine.book, j.db as PriceBook);
         if (j.region) { this.region = j.region; this.store.saveRegion(j.region); }
         this.tidyBook();
-        this.saveBook(); this.reevaluate(); this.render();
-        $('dataMsg').textContent = `Imported ${n} item${n === 1 ? '' : 's'}.`;
+        this.saveBook(); this.reevaluate();
+        const lines = this.appraisal.importEntries(cleanEntries(j.appraisal));
+        this.render();
+        $('dataMsg').textContent = `Imported ${n} item${n === 1 ? '' : 's'}.` + (lines ? ` Added ${lines} appraisal line${lines === 1 ? '' : 's'}.` : '');
       } catch { $('dataMsg').textContent = 'That file is not a scanner backup.'; }
     });
     this.onFile('fileMarket', async (f) => {

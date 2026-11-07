@@ -8,7 +8,7 @@ import { addEntry, clampQty, entryFor } from './entries';
 export interface HoverEvent {
   kind: 'added' | 'again' | 'fixed' | 'unreadable' | 'undone';
   text: string;
-  /** a quantity that could not be read: say so, the person can move the mouse and hover again */
+  /** the quantity is not known: say so, the person types it */
   warn?: boolean;
 }
 
@@ -86,7 +86,7 @@ export class HoverCollector {
     this.undos.push({ slot, created: entry === made });
     this.refresh(entry);
     return (this.last = {
-      kind: 'added', text: `Added ${made.name}${made.qty > 1 ? ` ×${made.qty}` : ''}${unsure ? ': count not read, check it' : ''}`, warn: unsure,
+      kind: 'added', text: `Added ${made.name}${made.qty > 1 ? ` ×${made.qty}` : ''}${unsure ? ': type how many you have in its Qty box' : ''}`, warn: unsure,
     });
   }
 

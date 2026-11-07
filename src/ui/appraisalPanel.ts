@@ -4,7 +4,7 @@ import { HoverCollector, type HoverEvent } from '../appraisal/hovers';
 import { quoteFull, quoteShort } from '../appraisal/quote';
 import type { Engine } from '../engine';
 import { parseAmount } from '../lib/text';
-import { DEFAULT_SETTINGS, type AppraisalData, type AppraisalMode, type Region } from '../lib/types';
+import { DEFAULT_SETTINGS, type AppraisalData, type AppraisalEntry, type AppraisalMode, type Region } from '../lib/types';
 import type { Storage } from '../store/storage';
 import { appraisalRowsHtml, appraisalText, overlayAppraisalHtml } from './appraisalViews';
 import { $ } from './dom';
@@ -53,6 +53,21 @@ export class AppraisalPanel {
 
   /** Where hovers count: near the marked area, or anywhere (also while no area is marked). */
   area(): Region | null { return this.settings.appraisalArea === 'marked' ? this.d.region() : null; }
+
+  /** The lines, for a backup. */
+  entries(): AppraisalEntry[] { return this.data.entries; }
+
+  /** Adds the lines of a backup. A line already here (same id) is skipped, so importing a file twice doesn't double it. Returns how many were added; the caller redraws. */
+  importEntries(list: readonly AppraisalEntry[]): number {
+    let n = 0;
+    for (const x of list) {
+      if (this.find(x.id)) continue;
+      addEntry(this.data.entries, { ...x });
+      n++;
+    }
+    if (n) this.save();
+    return n;
+  }
 
   /** What the pop-out overlay shows of the appraisal. */
   overlayHtml(): string { return overlayAppraisalHtml(this.result(), this.scanning, this.hint); }
