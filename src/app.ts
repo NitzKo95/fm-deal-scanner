@@ -13,6 +13,7 @@ import { fixSetSightings, isPriceBook, mergeBackup, mergeIntoMarket, newItem, pr
 import { Scanner } from './scan/scanner';
 import { ShopSession, type Deal } from './shop/session';
 import { Storage } from './store/storage';
+import { AppraisalPanel } from './ui/appraisalPanel';
 import { Calibration } from './ui/calibrate';
 import { $ } from './ui/dom';
 import { Overlay } from './ui/overlay';
@@ -46,6 +47,7 @@ export class App {
   private readonly overlay = new Overlay();
   private readonly chime = new Chime();
   private readonly calibration: Calibration;
+  private readonly appraisal: AppraisalPanel;
   /** a screenshot picked with "Test with a screenshot" */
   private still: ImageBitmap | null = null;
   private region: Region | null;
@@ -59,6 +61,7 @@ export class App {
     this.engine = { market: new MarketIndex(this.store.loadMarket()), book, settings: this.store.loadSettings(), now: () => Date.now() };
     pruneOld(book, Date.now());
     this.region = this.store.loadRegion();
+    this.appraisal = new AppraisalPanel({ engine: this.engine, store: this.store, failed: this.failedIcons });
     this.session = new ShopSession(this.engine, { onDeal: (d) => this.onDeal(d) });
     this.scanner = new Scanner(canvasAdapter, this.reader, this.session, this.engine, { onBook: () => this.saveBook() });
     this.calibration = new Calibration({
@@ -76,6 +79,7 @@ export class App {
 
   start(): void {
     this.wire();
+    this.appraisal.wire();
     const fixed = this.tidyBook();
     if (fixed) $('dataMsg').textContent = fixed;
     this.render();
@@ -249,6 +253,7 @@ export class App {
     this.renderShop();
     this.renderDeals();
     if (!(document.activeElement instanceof HTMLInputElement && document.activeElement.classList.contains('cellinput'))) this.renderBook();
+    this.appraisal.render();
     this.refreshStatus();
     this.renderOverlay();
   }
@@ -445,7 +450,7 @@ export class App {
         $('marketMsg').textContent = `Loaded ${fmt(this.engine.market.priced)} market prices${m.world ? ` for ${m.world}` : ''}.`
           + (tidy ? ` ${tidy}` : '') + (kept ? '' : ' The browser had no room to keep them, so load the file again next time.');
       } catch {
-        $('marketMsg').textContent = "That page has no price table. Save the tracker's page and pick its .html file.";
+        $('marketMsg').textContent = "That page has no price table. On meso.watch, wait until your world's prices show, save the page as Webpage, Complete, and pick that .html file.";
       }
     });
     const wipe = $('btnWipe');

@@ -1,6 +1,14 @@
 // Shared data shapes. Anything persisted keeps the field names the single-file scanner used,
 // so its Export file imports here unchanged.
 
+/**
+ * How an item's price is read. `cheap` is the shop scanner's: the lowest sensible price, so only
+ * real bargains stand out. `fair` and `greedy` are for appraising what you hold: what it is worth,
+ * and the most you could reasonably ask.
+ */
+export type PriceMode = 'cheap' | 'fair' | 'greedy';
+export type AppraisalMode = Exclude<PriceMode, 'cheap'>;
+
 export interface Settings {
   /** % under the usual price a listing must be to count as a deal */
   discount: number;
@@ -23,11 +31,16 @@ export interface Settings {
   statPct: number;
   /** stat points one used upgrade slot costs */
   slotWorth: number;
+  /** which price the appraisal uses */
+  appraisalMode: AppraisalMode;
+  /** % of the appraisal's total you offer or ask for taking everything */
+  bulkOffer: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   discount: 25, minProfit: 3000, fee: 3, base: 'median', minSeen: 3, interval: 0.8, sound: true,
   market: 'on', area: 'auto', readStats: 'on', statPct: 8, slotWorth: 1,
+  appraisalMode: 'fair', bulkOffer: 100,
 };
 
 /** [time ms, price per unit, units] */
@@ -127,6 +140,24 @@ export interface TooltipRead {
   remaining: number | null;
 }
 export interface StatValue { mult: number; summary: string; points: number; used: number }
+
+/** One line of an appraisal: an item you hold and how many. */
+export interface AppraisalEntry {
+  id: string;
+  key: string;
+  /** as typed or read; the tracker's spelling is used when the item is known */
+  name: string;
+  /** stack size; for throwing stars and bullets, the number of sets */
+  qty: number;
+  /** stats read from a hover tooltip: they scale an equip's price */
+  tip?: TooltipRead;
+  /** a price each typed on this line: it beats every mode */
+  price?: number | null;
+  /** left out of the total */
+  ignored?: boolean;
+}
+
+export interface AppraisalData { entries: AppraisalEntry[] }
 
 export interface Evaluation {
   verdict: Verdict;

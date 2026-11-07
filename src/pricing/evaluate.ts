@@ -1,20 +1,52 @@
 import type { Engine } from '../engine';
-import type { BookItem, Evaluation, Listing, MarketItem, Settings, TooltipRead, UsualSource } from '../lib/types';
+import type { BookItem, Evaluation, Listing, MarketItem, PriceMode, Settings, TooltipRead, UsualSource } from '../lib/types';
 import { isRough } from '../market/marketIndex';
 import { statValue } from '../tooltip/statValue';
-import { sightingStats } from './priceBook';
+import { sightingStats, type SightingStats } from './priceBook';
 
 export interface Usual { value: number; src: UsualSource; rough: boolean }
 
-/** Your typed price wins; otherwise the lower (safer) of the market price and your own sightings. */
-export function usualPrice(it: BookItem | null | undefined, mk: MarketItem | null, settings: Settings, now: number): Usual | null {
+/** What a mode reads its price from: the tracker's price for the item and the stats of your own sightings. */
+interface Inputs { mk: MarketItem | null; st: SightingStats; settings: Settings }
+
+const marketOf = ({ mk, settings }: Inputs): number | null => (settings.market !== 'off' && mk?.p ? mk.p : null);
+/** A sighting statistic, once there are enough sightings to trust it. */
+const seenOf = ({ st, settings }: Inputs, v: number | null): number | null => (st.n >= settings.minSeen ? v : null);
+const fromMarket = ({ mk }: Inputs, value: number): Usual => ({ value, src: 'market', rough: isRough(mk) });
+const fromSeen = (value: number): Usual => ({ value, src: 'seen', rough: false });
+
+/**
+ * The ways a price can be read. Each takes the same inputs and returns a price and where it came from,
+ * so a better rule is a change to one entry here. A price you typed for the item beats all of them.
+ */
+const MODES: Record<PriceMode, (i: Inputs) => Usual | null> = {
+  /** The lower (safer) of the market price and your own sightings: what the shop scanner judges against. */
+  cheap(i) {
+    const seen = seenOf(i, i.settings.base === 'q25' ? i.st.q25 : i.st.median), mkt = marketOf(i);
+    if (mkt != null && (seen == null || mkt <= seen)) return fromMarket(i, mkt);
+    return seen != null ? fromSeen(seen) : null;
+  },
+  /** The tracker's typical price; your sightings' middle only where the tracker has none. */
+  fair(i) {
+    const mkt = marketOf(i);
+    if (mkt != null) return fromMarket(i, mkt);
+    const seen = seenOf(i, i.st.median);
+    return seen != null ? fromSeen(seen) : null;
+  },
+  /** The higher of the tracker's typical price and the upper quarter of your own sightings (what shops ask). */
+  greedy(i) {
+    const mkt = marketOf(i), up = seenOf(i, i.st.q75);
+    if (mkt != null && (up == null || mkt >= up)) return fromMarket(i, mkt);
+    return up != null ? fromSeen(up) : null;
+  },
+};
+
+/** Your typed price wins; otherwise the price the mode reads. The shop scanner uses `cheap`. */
+export function usualPrice(
+  it: BookItem | null | undefined, mk: MarketItem | null, settings: Settings, now: number, mode: PriceMode = 'cheap',
+): Usual | null {
   if (it?.manualRef) return { value: it.manualRef, src: 'yours', rough: false };
-  const st = sightingStats(it, now);
-  const seen = st.n >= settings.minSeen ? (settings.base === 'q25' ? st.q25 : st.median) : null;
-  const mkt = settings.market !== 'off' && mk?.p ? mk.p : null;
-  if (mkt != null && (seen == null || mkt <= seen)) return { value: mkt, src: 'market', rough: isRough(mk) };
-  if (seen != null) return { value: seen, src: 'seen', rough: false };
-  return null;
+  return MODES[mode]({ mk, st: sightingStats(it, now), settings });
 }
 
 export type Judged = Listing & { tip?: TooltipRead };
