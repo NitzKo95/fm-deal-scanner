@@ -25,7 +25,7 @@ export function appraisalRowHtml(l: AppraisalLine, market: MarketIndex, failed?:
   const skip = e.ignored;
   return `<tr class="ap-${l.tag}" data-id="${esc(e.id)}">
     <td class="name"><span class="nm">${iconHtml(market, e.key, failed)}<span class="nm-t"><span class="nm-n">${esc(l.name)}</span>${note ? `<span class="sub">${esc(note)}</span>` : ''}</span></span></td>
-    <td class="n"><input class="cellinput${e.unsure ? ' unsure' : ''}" data-id="${esc(e.id)}" data-field="qty" value="${fmt(e.qty)}" inputmode="numeric" aria-label="${l.set ? 'Sets' : 'How many'} of ${esc(l.name)}">${e.unsure ? '<span class="sub warn" title="The number on the slot was hidden when it was hovered. Type the count, or hover it again with the mouse in the slot\'s top corner.">check count</span>' : ''}</td>
+    <td class="n"><input class="cellinput${e.unsure ? ' unsure' : ''}" data-id="${esc(e.id)}" data-field="qty" value="${fmt(e.qty)}" inputmode="numeric" aria-label="${l.set ? 'Sets' : 'How many'} of ${esc(l.name)}">${e.unsure ? '<span class="sub warn" title="The scanner doesn\'t read the number on a slot. Type how many you have.">type count</span>' : ''}</td>
     <td class="n"><input class="cellinput" data-id="${esc(e.id)}" data-field="price" value="${e.price ? fmt(e.price) : ''}" placeholder="${l.unit == null ? 'price?' : fmtEach(l.unit)}" aria-label="Price each for ${esc(l.name)}">${l.src ? `<span class="sub">${SRC_TEXT[l.src]}</span>` : ''}</td>
     <td class="n"${l.tag === 'ignored' ? '' : ` title="${esc(tagTip(l, market))}"`}>${l.total == null ? '–' : fmt(l.total)}</td>
     <td><span class="chip ${l.tag}" title="${esc(tagTip(l, market))}">${TAG_TEXT[l.tag]}</span></td>

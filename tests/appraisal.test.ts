@@ -204,6 +204,18 @@ describe('AppraisalPanel', () => {
     expect(p.area()).toEqual(region);
   });
 
+  it('adds the lines of a backup once, however often the file is imported', () => {
+    const { p } = panel({});
+    const lines = [{ id: 'a1', key: 'lemona', name: 'Lemona', qty: 2 }, { id: 'b2', key: 'red potion', name: 'Red Potion', qty: 84, unsure: true }];
+    expect(p.importEntries(lines)).toBe(2);
+    expect(p.importEntries(lines)).toBe(0);
+    expect(p.entries().map((x) => [x.name, x.qty])).toEqual([['Lemona', 2], ['Red Potion', 84]]);
+    expect(p.entries()[1]!.unsure).toBe(true);
+    // the same item from another backup joins its line
+    expect(p.importEntries([{ id: 'c3', key: 'lemona', name: 'Lemona', qty: 1 }])).toBe(1);
+    expect(p.entries().map((x) => [x.name, x.qty])).toEqual([['Lemona', 3], ['Red Potion', 84]]);
+  });
+
   it('starts paused, and scanning needs something to scan', () => {
     const en = engine(), st = new Storage(null);
     let on: boolean | null = null;

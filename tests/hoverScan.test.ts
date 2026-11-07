@@ -27,8 +27,9 @@ describe('HoverScanner', () => {
     const { scanner, data } = setup(() => recorded('use-scroll-inventory'));
     const ev = await scanner.scan(loadPng('appraisal/use-scroll-inventory.png'), { live: false, area: null });
     expect(ev).toMatchObject({ kind: 'added', warn: true });
+    expect(ev!.text).toContain('type how many you have');
     expect(names(data)).toEqual(['Overall Armor LUK Scroll: Greater×1']);
-    expect(data.entries[0]!.unsure).toBe(true);   // a stack whose count was not read
+    expect(data.entries[0]!.unsure).toBe(true);   // a stack: how many is for the person to type
   });
 
   it('adds an equip with its stats, as one item', async () => {
