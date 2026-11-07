@@ -50,11 +50,11 @@ export class MarketIndex {
   /** The real name of the item a key is filed under, from the tracker or the game data. */
   knownName(key: string): string | null { return this.byKey.get(key)?.n ?? this.catalog.get(key)?.name ?? null; }
   /** The game-data item a name read off the screen means, if exactly one is that close. */
-  nearestInCatalog(k: string, truncated: boolean): string | null {
-    const memo = `${truncated ? 1 : 0}${k}`;
+  nearestInCatalog(k: string, truncated: boolean, extra = 0): string | null {
+    const memo = `${truncated ? 1 : 0}${extra}${k}`;
     if (!this.nearest.has(memo)) {
       this.catalogKeyList ??= [...this.catalog.keys()];
-      this.nearest.set(memo, findKey(k, truncated, this.catalogKeyList, (x) => x));
+      this.nearest.set(memo, findKey(k, truncated, this.catalogKeyList, (x) => x, extra));
     }
     return this.nearest.get(memo) ?? null;
   }
