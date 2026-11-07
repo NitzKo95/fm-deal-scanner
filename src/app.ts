@@ -22,7 +22,7 @@ import { Overlay } from './ui/overlay';
 import { Chime } from './ui/sound';
 import {
   bookRowHtml, bookRows, dealLine, dealsHtml, freshDeal, hoverText, iconHtml, marketInfo, overlayHtml,
-  parsePriceLines, rulesSummary, shopMeta, shopRowHtml, sortRows, type BookSort,
+  cleanSort, nextSort, parsePriceLines, rulesSummary, shopMeta, shopRowHtml, sortRows, type BookSort, type ShopSort,
 } from './ui/views';
 import { canvasAdapter, type Frame } from './vision/canvas';
 
@@ -315,8 +315,31 @@ export class App {
     img.remove();
   }
 
+  /** How the open shop is ordered, from the saved setting. */
+  private shopSort(): ShopSort { return cleanSort(this.settings.shopSort, this.settings.shopSortDir); }
+
+  private setShopSort(s: ShopSort): void {
+    this.settings.shopSort = s.col;
+    this.settings.shopSortDir = s.dir;
+    this.store.saveSettings(this.settings);
+    this.renderShop();
+    this.renderOverlay();
+  }
+
+  /** Arrows and aria on the shop table's headers, and the way back to the default order. */
+  private renderShopHeaders(): void {
+    const s = this.shopSort();
+    for (const th of document.querySelectorAll<HTMLElement>('#shopTable th.sortable')) {
+      const on = th.dataset.col === s.col;
+      th.innerHTML = (th.textContent ?? '').replace(/[▲▼]/g, '').trim() + (on ? `<span class="arrow">${s.dir > 0 ? '▲' : '▼'}</span>` : '');
+      th.setAttribute('aria-sort', on ? (s.dir > 0 ? 'ascending' : 'descending') : 'none');
+    }
+    $('shopSortReset').hidden = s.col === 'best';
+  }
+
   private renderShop(): void {
-    const rows = sortRows(this.session.displayRows());
+    this.renderShopHeaders();
+    const rows = sortRows(this.session.displayRows(), this.shopSort());
     const m = this.engine.market;
     const table = $<HTMLTableElement>('shopTable');
     table.tBodies[0]!.innerHTML = rows.map((r) => shopRowHtml(r, m, this.failedIcons)).join('');
@@ -364,7 +387,7 @@ export class App {
     if (!this.overlay.win) return;
     const h = this.session.hover;
     this.overlay.render(overlayHtml({
-      open: this.session.open, capturing: this.capture.active, rows: sortRows(this.session.displayRows()),
+      open: this.session.open, capturing: this.capture.active, rows: sortRows(this.session.displayRows(), this.shopSort()),
       deal: freshDeal(this.session, Date.now()), hover: hoverText(h, this.engine), hoverKey: h?.key ?? null,
     }, this.engine.market, this.failedIcons, this.appraisal.overlayHtml()));
   }
@@ -407,6 +430,14 @@ export class App {
     });
     this.onFile('fileShot', (f) => this.loadScreenshot(f));
     $('btnClearDeals').addEventListener('click', () => { this.session.clearDeals(); this.render(); });
+
+    // the open shop: click a column to order by it, again to flip; the choice is kept for the next shop
+    for (const th of document.querySelectorAll<HTMLElement>('#shopTable th.sortable')) {
+      const pick = () => this.setShopSort(nextSort(this.shopSort(), th.dataset.col as ShopSort['col']));
+      th.addEventListener('click', pick);
+      th.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+    }
+    $('shopSortReset').addEventListener('click', () => this.setShopSort({ col: 'best', dir: 1 }));
 
     // price book
     $('bookSearch').addEventListener('input', () => this.renderBook());
