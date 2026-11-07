@@ -71,9 +71,13 @@ export function parseTooltip(lines: readonly OcrLine[], resolve: ResolveName, op
       // dropping words with a regex keeps the wide gaps cleanName splits on
       const c = cleanName(t.replace(new RegExp(`^(\\S+\\s+){${drop}}`), ''));
       if (c.name.length < 3 || !/[A-Za-z]{2}/.test(c.name)) continue;
-      const r = resolve(c.name);
-      if (r.known) { key = r.key; name = r.known; known = true; }
-      else if (!name && drop === 0) { key = r.key; name = c.name; }
+      // the bullet before the name can come out as a letter or two: "sLeaf" is "Leaf"
+      for (const cand of [c.name, c.name.replace(/^[a-z]{1,2}(?=[A-Z])/, '')]) {
+        if (known || cand.length < 3) continue;
+        const r = resolve(cand);
+        if (r.known) { key = r.key; name = r.known; known = true; }
+        else if (!name && drop === 0) { key = r.key; name = cand; }
+      }
     }
     if (known) break;
   }

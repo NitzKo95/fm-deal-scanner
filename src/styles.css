@@ -227,6 +227,22 @@ tr.ap-unpriced td:first-child { box-shadow: inset 3px 0 0 var(--high); }
   #apTable td:nth-child(6) { grid-column: 3; text-align: right; }
 }
 .aprough { color: var(--high); margin-top: 8px; }
+.aptoolbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: end; margin: 12px 0 6px; }
+.aptoolbar .field { min-width: 190px; }
+.apstate { align-self: center; padding: 3px 10px; border-radius: 999px; font-size: .82rem; font-weight: 700; background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); }
+.apstate[data-on="true"] { background: var(--deal-bg); color: var(--deal); border-color: var(--deal); }
+.aphint { margin: 2px 0 8px; }
+.aphint.bad { color: var(--high); }
+.cellinput.unsure { border-color: var(--accent); background: var(--accent-soft); }
+td .sub.warn { color: var(--accent); }
+/* the overlay's appraisal block */
+.pip .apbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 0 0 8px; padding: 8px 10px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); }
+.pip .apbar.on { border-color: var(--deal); background: var(--deal-bg); }
+.pip .apbar b { font: 700 .95rem/1.2 var(--f-display); }
+.pip .aptot { font: 800 1.35rem/1.15 var(--f-display); font-variant-numeric: tabular-nums; }
+.pip .aptot small { font: 600 .74rem/1 var(--f-body); color: var(--muted); }
+.pip .apnote { margin: 0 0 6px; font-size: .78rem; color: var(--muted); }
+.pip .apnote.warn { color: var(--high); }
 .aptotals { display: flex; flex-wrap: wrap; gap: 8px 36px; margin: 14px 0 6px; }
 .aptotals > div { display: grid; }
 .aptotals b { font: 800 1.9rem/1.1 var(--f-display); font-variant-numeric: tabular-nums; }

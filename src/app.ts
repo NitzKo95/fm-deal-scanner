@@ -1,3 +1,4 @@
+import { HoverScanner } from './appraisal/hoverScan';
 import { CaptureFailed, ScreenCapture, type Grab } from './capture/screen';
 import { Ticker } from './capture/ticker';
 import type { Engine } from './engine';
@@ -14,7 +15,7 @@ import { Scanner } from './scan/scanner';
 import { ShopSession, type Deal } from './shop/session';
 import { Storage } from './store/storage';
 import { AppraisalPanel } from './ui/appraisalPanel';
-import { Calibration } from './ui/calibrate';
+import { Calibration, type AreaKind } from './ui/calibrate';
 import { $ } from './ui/dom';
 import { Overlay } from './ui/overlay';
 import { Chime } from './ui/sound';
@@ -48,9 +49,12 @@ export class App {
   private readonly chime = new Chime();
   private readonly calibration: Calibration;
   private readonly appraisal: AppraisalPanel;
+  private readonly hoverScanner: HoverScanner<Frame, HTMLCanvasElement>;
   /** a screenshot picked with "Test with a screenshot" */
   private still: ImageBitmap | null = null;
   private region: Region | null;
+  /** the area marked for the appraisal's hovers */
+  private itemsRegion: Region | null;
   private sort: BookSort = { col: 'last', dir: -1 };
   /** icon addresses that failed to load: show the emoji instead from now on */
   private readonly failedIcons = new Set<string>();
@@ -61,7 +65,15 @@ export class App {
     this.engine = { market: new MarketIndex(this.store.loadMarket()), book, settings: this.store.loadSettings(), now: () => Date.now() };
     pruneOld(book, Date.now());
     this.region = this.store.loadRegion();
-    this.appraisal = new AppraisalPanel({ engine: this.engine, store: this.store, failed: this.failedIcons });
+    this.itemsRegion = this.store.loadItemsRegion();
+    this.appraisal = new AppraisalPanel({
+      engine: this.engine, store: this.store, failed: this.failedIcons,
+      region: () => this.itemsRegion,
+      canScan: () => this.capture.active || !!this.still,
+      onMark: () => void this.calibration.open('items'),
+      onScan: (on) => this.scanningChanged(on),
+    });
+    this.hoverScanner = new HoverScanner(canvasAdapter, this.reader, this.appraisal.collector, this.engine);
     this.session = new ShopSession(this.engine, { onDeal: (d) => this.onDeal(d) });
     this.scanner = new Scanner(canvasAdapter, this.reader, this.session, this.engine, { onBook: () => this.saveBook() });
     this.calibration = new Calibration({
@@ -70,9 +82,9 @@ export class App {
       sharingWholeScreen: () => this.capture.sharingWholeScreen(),
       framesIn: () => this.capture.framesIn,
       auto: () => this.auto(),
-      region: () => this.region,
+      region: (kind: AreaKind) => (kind === 'items' ? this.itemsRegion : this.region),
       ocr: this.reader,
-      save: (r) => this.saveRegion(r),
+      save: (r, kind: AreaKind) => (kind === 'items' ? this.saveItemsRegion(r) : this.saveRegion(r)),
       chime: () => this.chime.play(),
     });
   }
@@ -111,18 +123,32 @@ export class App {
   }
 
   async scan(force: boolean): Promise<void> {
-    if (this.scanner.busy || !this.reader.ready) return;
-    if (!this.auto() && !this.region) return;
+    const hovers = this.appraisal.scanning, shop = this.auto() || !!this.region;
+    if (this.scanner.busy || this.hoverScanner.busy || !this.reader.ready) return;
+    if (!shop && !hovers) return;
     const g = this.still ? { frame: this.still as Frame, done: () => {} } : await this.capture.grab();
     if (!g) return;
-    let prepared;
+    let prepared, hover;
     try {
-      prepared = this.scanner.prepare(g.frame, {
-        auto: this.auto(), region: this.region, readStats: this.settings.readStats !== 'off', live: !this.still, force,
-      });
+      if (shop) {
+        prepared = this.scanner.prepare(g.frame, {
+          auto: this.auto(), region: this.region, readStats: this.settings.readStats !== 'off', live: !this.still, force,
+        });
+      }
+      // a shop list on screen means a shop is open, and the hovers over it belong to the shop
+      if (hovers && !prepared?.list) hover = this.hoverScanner.prepare(g.frame, { live: !this.still, area: this.appraisal.area() });
     } finally { g.done(); }
-    try { await this.scanner.read(prepared); } catch (e) { console.error(e); }
-    if (this.scanner.lastCrop) this.drawSeen(this.scanner.lastCrop);
+    if (prepared) {
+      try { await this.scanner.read(prepared); } catch (e) { console.error(e); }
+      if (this.scanner.lastCrop) this.drawSeen(this.scanner.lastCrop);
+    }
+    if (hover) {
+      try {
+        const ev = await this.hoverScanner.read(hover);
+        if (ev.kind === 'added' && this.settings.sound) this.chime.tick();
+        this.appraisal.showEvent(ev);
+      } catch (e) { console.error(e); }
+    }
     document.body.dataset.scans = String(this.scanner.scans);
     this.render();
   }
@@ -168,6 +194,7 @@ export class App {
   }
 
   stopCapture(): void {
+    this.appraisal.setScanning(false);
     this.ticker.stop();
     this.capture.stop();
     this.session.close();
@@ -187,6 +214,23 @@ export class App {
     if (!this.auto() && !this.region) await this.calibration.open();
     else await this.scan(true);
     this.refreshStatus();
+  }
+
+  /** Appraisal scanning was turned on or off: the screen is checked now, and the status and overlay follow. */
+  private scanningChanged(on: boolean): void {
+    this.chime.unlock();
+    this.refreshStatus();
+    this.renderOverlay();
+    if (on) void this.scan(false);
+  }
+
+  private saveItemsRegion(r: Region): void {
+    this.itemsRegion = r;
+    this.store.saveItemsRegion(r);
+    this.settings.appraisalArea = 'marked';
+    this.store.saveSettings(this.settings);
+    this.appraisal.setHint('Area saved. Only tooltips beside it are counted now.');
+    this.render();
   }
 
   private saveRegion(r: Region): void {
@@ -232,6 +276,10 @@ export class App {
   private refreshStatus(): void {
     if (!this.capture.active && !this.still) return;
     if (!this.auto() && !this.region) { this.setStatus('busy', '<b>Mark the shop area</b> so the scanner knows where to read.'); return; }
+    if (this.appraisal.scanning && !this.session.open) {
+      this.setStatus('watching', '<b>Scanning hovers.</b> Point at items in the game and they are added to the appraisal.');
+      return;
+    }
     if (this.session.open) {
       const n = this.session.listingCount();
       this.setStatus('shop', `<b>Shop open</b>, ${n} listing${n === 1 ? '' : 's'} read in ${Math.round(this.scanner.ocrMs)} ms`);
@@ -317,7 +365,7 @@ export class App {
     this.overlay.render(overlayHtml({
       open: this.session.open, capturing: this.capture.active, rows: sortRows(this.session.displayRows()),
       deal: freshDeal(this.session, Date.now()), hover: hoverText(h, this.engine), hoverKey: h?.key ?? null,
-    }, this.engine.market, this.failedIcons));
+    }, this.engine.market, this.failedIcons, this.appraisal.overlayHtml()));
   }
 
   private drawSeen(src: HTMLCanvasElement): void {
@@ -480,7 +528,7 @@ export class App {
   private async openOverlay(): Promise<void> {
     if (!Overlay.supported()) { $('btnPip').textContent = 'Overlay needs Chrome 116+'; return; }
     try {
-      await this.overlay.open((img) => this.iconFailed(img));
+      await this.overlay.open((img) => this.iconFailed(img), (act) => { if (act === 'scan') this.appraisal.toggleScanning(); });
       this.renderOverlay();
     } catch (e) { console.warn(e); }
   }

@@ -33,6 +33,8 @@ export interface Settings {
   slotWorth: number;
   /** which price the appraisal uses */
   appraisalMode: AppraisalMode;
+  /** count a hover anywhere, or only near the area you marked */
+  appraisalArea: 'any' | 'marked';
   /** % of the appraisal's total you offer or ask for taking everything */
   bulkOffer: number;
 }
@@ -40,7 +42,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   discount: 25, minProfit: 3000, fee: 3, base: 'median', minSeen: 3, interval: 0.8, sound: true,
   market: 'on', area: 'auto', readStats: 'on', statPct: 8, slotWorth: 1,
-  appraisalMode: 'fair', bulkOffer: 100,
+  appraisalMode: 'fair', appraisalArea: 'any', bulkOffer: 100,
 };
 
 /** [time ms, price per unit, units] */
@@ -155,6 +157,8 @@ export interface AppraisalEntry {
   price?: number | null;
   /** left out of the total */
   ignored?: boolean;
+  /** the count could not be read off the slot (the mouse or the tooltip covered it): check it */
+  unsure?: boolean;
 }
 
 export interface AppraisalData { entries: AppraisalEntry[] }

@@ -179,7 +179,7 @@ describe('AppraisalPanel', () => {
     const en = engine();
     Object.assign(en.settings, over);
     const st = new Storage(null);
-    return { en, p: new AppraisalPanel({ engine: en, store: st, failed: new Set() }) };
+    return { en, p: new AppraisalPanel({ engine: en, store: st, failed: new Set(), region: () => null, canScan: () => true, onMark: () => {}, onScan: () => {} }) };
   };
 
   it('starts empty and keeps good settings', () => {
@@ -192,5 +192,23 @@ describe('AppraisalPanel', () => {
     const { en } = panel({ appraisalMode: 'cheap', bulkOffer: NaN });
     expect(en.settings).toMatchObject({ appraisalMode: DEFAULT_SETTINGS.appraisalMode, bulkOffer: DEFAULT_SETTINGS.bulkOffer });
     expect(panel({ appraisalMode: 'nope', bulkOffer: -5 }).en.settings).toMatchObject({ appraisalMode: 'fair', bulkOffer: 100 });
+    expect(panel({ appraisalArea: 'everywhere' }).en.settings.appraisalArea).toBe('any');
+  });
+
+  it('counts hovers anywhere, or only near the marked area once one is chosen', () => {
+    const region = { x: 0.1, y: 0.1, w: 0.3, h: 0.3 };
+    const en = engine(), st = new Storage(null);
+    const p = new AppraisalPanel({ engine: en, store: st, failed: new Set(), region: () => region, canScan: () => true, onMark: () => {}, onScan: () => {} });
+    expect(p.area()).toBeNull();
+    en.settings.appraisalArea = 'marked';
+    expect(p.area()).toEqual(region);
+  });
+
+  it('starts paused, and scanning needs something to scan', () => {
+    const en = engine(), st = new Storage(null);
+    let on: boolean | null = null;
+    const p = new AppraisalPanel({ engine: en, store: st, failed: new Set(), region: () => null, canScan: () => false, onMark: () => {}, onScan: (v) => { on = v; } });
+    expect(p.scanning).toBe(false);
+    expect(on).toBeNull();
   });
 });

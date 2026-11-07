@@ -108,7 +108,7 @@ export function dealsHtml(deals: readonly Deal[], market: MarketIndex, failed?: 
 export interface OverlayState { open: boolean; capturing: boolean; rows: DisplayRow[]; deal: Deal | null; hover: string; hoverKey: string | null }
 
 /** The overlay: the newest deal on top, then the best eight rows of the open shop. */
-export function overlayHtml(o: OverlayState, market: MarketIndex, failed?: ReadonlySet<string>): string {
+export function overlayHtml(o: OverlayState, market: MarketIndex, failed?: ReadonlySet<string>, extra = ''): string {
   const rows = o.rows.slice(0, 8);
   const l = o.deal ? dealLine(o.deal, market) : null;
   const head = `<div class="ph"><b>FM Deal Scanner</b><span>${o.open ? 'Shop open' : o.capturing ? 'Watching' : 'Not capturing'}</span></div>`;
@@ -121,7 +121,7 @@ export function overlayHtml(o: OverlayState, market: MarketIndex, failed?: Reado
       + '<thead><tr><th>Item</th><th class="n">Each</th><th class="n">Usual</th><th class="n" title="Price now vs usual price">%</th><th></th></tr></thead>'
       + `<tbody>${rows.map((r) => overlayRowHtml(r, market, failed)).join('')}</tbody></table>`
     : '<p class="empty">Open a shop in the game.</p>';
-  return head + hover + deal + table;
+  return head + extra + hover + deal + table;
 }
 
 // ---------- price book ----------

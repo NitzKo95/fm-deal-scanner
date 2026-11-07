@@ -41,6 +41,10 @@ export class Storage {
   }
   saveAppraisal(a: AppraisalData): boolean { return this.set('appraisal', a); }
 
+  /** the area marked for the appraisal's hovers, apart from the shop's */
+  loadItemsRegion(): Region | null { return this.get<Region | null>('region.items', null); }
+  saveItemsRegion(r: Region): boolean { return this.set('region.items', r); }
+
   loadRegion(): Region | null { return this.get<Region | null>('region.v4', null); }
   saveRegion(r: Region): boolean { return this.set('region.v4', r); }
 }

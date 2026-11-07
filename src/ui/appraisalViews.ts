@@ -25,7 +25,7 @@ export function appraisalRowHtml(l: AppraisalLine, market: MarketIndex, failed?:
   const skip = e.ignored;
   return `<tr class="ap-${l.tag}" data-id="${esc(e.id)}">
     <td class="name"><span class="nm">${iconHtml(market, e.key, failed)}<span class="nm-t"><span class="nm-n">${esc(l.name)}</span>${note ? `<span class="sub">${esc(note)}</span>` : ''}</span></span></td>
-    <td class="n"><input class="cellinput" data-id="${esc(e.id)}" data-field="qty" value="${fmt(e.qty)}" inputmode="numeric" aria-label="${l.set ? 'Sets' : 'How many'} of ${esc(l.name)}"></td>
+    <td class="n"><input class="cellinput${e.unsure ? ' unsure' : ''}" data-id="${esc(e.id)}" data-field="qty" value="${fmt(e.qty)}" inputmode="numeric" aria-label="${l.set ? 'Sets' : 'How many'} of ${esc(l.name)}">${e.unsure ? '<span class="sub warn" title="The number on the slot was hidden when it was hovered. Type the count, or hover it again with the mouse in the slot\'s top corner.">check count</span>' : ''}</td>
     <td class="n"><input class="cellinput" data-id="${esc(e.id)}" data-field="price" value="${e.price ? fmt(e.price) : ''}" placeholder="${l.unit == null ? 'price?' : fmtEach(l.unit)}" aria-label="Price each for ${esc(l.name)}">${l.src ? `<span class="sub">${SRC_TEXT[l.src]}</span>` : ''}</td>
     <td class="n"${l.tag === 'ignored' ? '' : ` title="${esc(tagTip(l, market))}"`}>${l.total == null ? '–' : fmt(l.total)}</td>
     <td><span class="chip ${l.tag}" title="${esc(tagTip(l, market))}">${TAG_TEXT[l.tag]}</span></td>
@@ -51,4 +51,15 @@ export function appraisalText(r: AppraisalResult): AppraisalText {
     offer: fmt(r.quote),
     mode: `${APPRAISAL_MODES[r.mode].label}: ${APPRAISAL_MODES[r.mode].blurb}.`,
   };
+}
+
+/** The pop-out overlay's block: the running total, and the button that starts and pauses scanning. */
+export function overlayAppraisalHtml(r: AppraisalResult, scanning: boolean, hint: string): string {
+  if (!scanning && !r.kinds) return '';
+  const t = appraisalText(r);
+  return `<div class="apbar${scanning ? ' on' : ''}"><div><b>Appraisal</b> <span class="dim">${esc(t.meta)}</span>`
+    + `<div class="aptot">${esc(t.total)}${r.bulk === 100 ? '' : ` <small>offer ${esc(t.offer)}</small>`}</div></div>`
+    + `<button class="btn small${scanning ? '' : ' primary'}" data-act="scan">${scanning ? 'Pause' : 'Scan hovers'}</button></div>`
+    + (hint ? `<p class="apnote">${esc(hint)}</p>` : '')
+    + (r.unpriced ? `<p class="apnote warn">${esc(plural(r.unpriced, 'item', 'items'))} not priced</p>` : '');
 }

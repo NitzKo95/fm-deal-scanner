@@ -96,6 +96,13 @@ describe('stat lines of the item tooltips', () => {
     expect(t).toMatchObject({ name: 'Overall Armor LUK Scroll: Greater', stats: [], remaining: null });
   });
 
+  it('reads a name whose bullet came out as a letter', () => {
+    expect(parseTooltip([line('sLeaf', 14), line('A leaf that\'s taken out of a tree.')], tooltipResolver(e), { bare: true })).toMatchObject({ name: 'Leaf' });
+    expect(parseTooltip([line('oWeighted Earrings'), line('Type: Earrings'), line('Remaining Enhancements: 5')], tooltipResolver(e))).toMatchObject({ name: 'Weighted Earrings' });
+    // a name that really starts with a lowercase letter and a capital is left alone
+    expect(parseTooltip([line('Lemona'), line('Type: Gloves'), line('Remaining Enhancements: 5')], tooltipResolver(e))).toMatchObject({ name: 'Lemona' });
+  });
+
   it('skips a stray line above the name when the name is a real item', () => {
     const t = parseTooltip([line("Am juback's", 36), line('*Lemona', 88), line('REQ LEV: 15'), line('Type: Gloves'), line('+ INT: #1')], tooltipResolver(e))!;
     expect(t).toMatchObject({ name: 'Lemona', type: 'Gloves' });
