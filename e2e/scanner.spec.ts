@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { PNG } from 'pngjs';
 import { loadPng, placeOn, scaleBy } from '../tests/helpers/image';
 import type { Pixels } from '../src/vision/pixels';
+import { HOVER_ITEMS } from '../tests/helpers/hover';
 
 /** A screen-sized PNG with a fixture drawn on it, as a file for the screenshot picker. */
 function screenFile(name: string, frame: Pixels) {
@@ -22,9 +23,14 @@ function hoverOverShop(f: number, sw: number, sh: number): Pixels {
 }
 
 /** A saved tracker page, made up: the parts of the table the importer reads. */
-const TRACKER = `<!doctype html><html><body><div id="world"><span>Windia</span></div>
+type TrackerRow = [id: string, name: string, category: string, price: number, sales: number, emoji: string];
+const trackerPage = (rows: TrackerRow[]) => `<!doctype html><html><body><div id="world"><span>Windia</span></div>
 <button id="updated" title="Last updated Nov 4, 9:00 AM"></button><table><tbody id="rows">
-${[
+${rows.map(([id, n, c, p, s, e]) => `<tr data-id="basil:${id}"><td><img data-fallback="${e}"><span class="item-name" title="${n}">${n}</span><span class="item-cat">${c}</span></td>
+<td data-col="price"><span class="meso" title="${Number(p).toLocaleString('en-US')} mesos">x</span></td><td><span class="sales-count">${s}</span></td></tr>`).join('\n')}
+</tbody></table></body></html>`;
+
+const TRACKER = trackerPage([
   ['01472013', 'Dark Guardian', 'Weapons', 120000, 300, '🗡️'],
   ['01072044', 'Bronze Chain Boots', 'Equips', 12000, 60, '👢'],
   ['01082003', 'Lemona', 'Equips', 21000, 50, '🧤'],
@@ -32,9 +38,10 @@ ${[
   ['02040703', 'Shoes Speed Scroll: Chaos', 'Scrolls', 21000, 120, '📜'],
   ['01302012', 'Traus', 'Weapons', 55000, 94, '⚔️'],
   ['02070006', 'Wolbi Throwing Stars', 'Stars', 2499, 7359, '⭐'],
-].map(([id, n, c, p, s, e]) => `<tr data-id="basil:${id}"><td><img data-fallback="${e}"><span class="item-name" title="${n}">${n}</span><span class="item-cat">${c}</span></td>
-<td data-col="price"><span class="meso" title="${Number(p).toLocaleString('en-US')} mesos">x</span></td><td><span class="sales-count">${s}</span></td></tr>`).join('\n')}
-</tbody></table></body></html>`;
+]);
+
+/** The items on the hover screenshots, as the tracker had them on Nov 7 2026. */
+const HOVER_TRACKER = trackerPage(HOVER_ITEMS.map((it, i): TrackerRow => [`0${1000000 + i}`, it.n, it.c, it.p ?? 0, it.s, '📦']));
 
 /** The item names the build fetches from maplestory.io, a few of them, so the tests don't depend on it. */
 const CATALOG = { source: 'test', fetched: '2026-11-04T00:00:00Z', items: [[1082003, 'Lemona'], [1302012, 'Traus']] };
@@ -189,6 +196,90 @@ test('appraises a pile of items typed in, and keeps it', async ({ page }) => {
   await expect(page.locator('#apBody tr')).toHaveCount(0);
   await expect(page.locator('#apMeta')).toHaveText('Nothing added yet');
   await expect(page.locator('#apEmpty')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('adds the items you hover to the appraisal, and only while scanning', async ({ page }) => {
+  test.setTimeout(240_000);
+  const { errors } = await open(page);
+  await page.setInputFiles('#fileMarket', { name: 'tracker.html', mimeType: 'text/html', buffer: Buffer.from(HOVER_TRACKER) });
+  await expect(page.locator('#marketMsg')).toContainText('Loaded 10 market prices');
+  const screen = (name: string) => screenFile(`${name}.png`, placeOn(loadPng(`appraisal/${name}.png`), 1440, 900, 100, 100));
+  const rows = page.locator('#apBody tr');
+
+  // nothing to scan yet: scanning can't start
+  await page.click('#apScan');
+  await expect(page.locator('#apHint')).toContainText('Start the screen capture first');
+  await expect(page.locator('#apState')).toHaveText('Paused');
+
+  // a screenshot to scan, then start: the scroll under the mouse is added, with its count flagged as unread
+  await loadShot(page, screen('use-scroll-inventory'));
+  await page.click('#apScan');
+  await expect(page.locator('#apState')).toHaveText('Scanning: point at your items');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText('Overall Armor LUK Scroll: Greater');
+  await expect(rows.first().locator('.cellinput.unsure')).toHaveCount(1);
+  await expect(page.locator('#apHint')).toContainText('count not read');
+  await expect(page.locator('#statusText')).toContainText('Scanning hovers');
+
+  // another item, in the trade window: an equip, with its stats
+  await loadShot(page, screen('trade-equip'));
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(1)).toContainText('Lemona');
+  await expect(rows.nth(1).locator('.cellinput.unsure')).toHaveCount(0);
+  await expect(page.locator('#apTotal')).toHaveText('29,499');   // 27,499 + 2,000
+
+  // a hover that is a repeat adds nothing
+  await loadShot(page, screen('trade-equip'));
+  await expect(rows).toHaveCount(2);
+
+  // type the count of the scroll: no longer in doubt
+  await rows.first().locator('input[data-field="qty"]').fill('3');
+  await rows.first().locator('input[data-field="qty"]').press('Tab');
+  await expect(rows.first().locator('.cellinput.unsure')).toHaveCount(0);
+  await expect(page.locator('#apTotal')).toHaveText('84,497');   // 3 × 27,499 + 2,000
+
+  // a potion, then take it back
+  await loadShot(page, screen('bright-potion-count'));
+  await expect(rows).toHaveCount(3);
+  await expect(page.locator('#apUndo')).toBeEnabled();
+  await page.click('#apUndo');
+  await expect(rows).toHaveCount(2);
+  await expect(page.locator('#apHint')).toContainText('Took back Red Potion');
+
+  // paused: hovering adds nothing
+  await page.click('#apScan');
+  await expect(page.locator('#apState')).toHaveText('Paused');
+  await loadShot(page, screen('equip-not-worn'));
+  await expect(rows).toHaveCount(2);
+
+  // with an area marked far from the tooltip, hovering adds nothing either
+  await page.click('#apMark');
+  await expect(page.locator('#calib')).toBeVisible();
+  await expect(page.locator('#hCalib')).toHaveText('Mark the area of items');
+  const box = (await page.locator('#calibCanvas').boundingBox())!;
+  await page.mouse.move(box.x + box.width * 0.82, box.y + box.height * 0.03);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.96, box.y + box.height * 0.13, { steps: 5 });
+  await page.mouse.up();
+  await page.click('#calibSave');
+  await expect(page.locator('#calib')).toBeHidden();
+  await expect(page.locator('#apArea')).toHaveValue('marked');
+  await page.click('#apScan');
+  await expect(page.locator('#apState')).toHaveText('Scanning: point at your items');
+  await expect(rows).toHaveCount(2);   // the screenshot on screen has its tooltip far from the box
+  await loadShot(page, screen('equip-not-worn'));
+  await expect(rows).toHaveCount(2);
+  // back to anywhere: it is counted
+  await page.selectOption('#apArea', 'any');
+  await loadShot(page, screen('equip-extra-points'));
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(2)).toContainText('Blue Bamboo Hat');
+  // stopping the capture is not needed to pause; the area and the lines are kept across a reload
+  await page.reload();
+  await expect(rows).toHaveCount(3);
+  await expect(page.locator('#apState')).toHaveText('Paused');
+  await expect(page.locator('#apArea')).toHaveValue('any');
   expect(errors).toEqual([]);
 });
 

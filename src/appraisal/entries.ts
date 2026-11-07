@@ -61,6 +61,7 @@ export function cleanEntries(v: unknown): AppraisalEntry[] {
     if (x.tip && typeof x.tip === 'object' && Array.isArray(x.tip.stats)) entry.tip = x.tip;
     if (typeof x.price === 'number' && x.price > 0) entry.price = x.price;
     if (x.ignored) entry.ignored = true;
+    if (x.unsure) entry.unsure = true;
     out.push(entry);
   }
   return out;

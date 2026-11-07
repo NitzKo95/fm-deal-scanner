@@ -1,43 +1,97 @@
 import { APPRAISAL_MODES, appraise, type AppraisalResult } from '../appraisal/appraise';
 import { addEntry, clampQty, entryFor, parseAppraisalLines } from '../appraisal/entries';
+import { HoverCollector, type HoverEvent } from '../appraisal/hovers';
 import { quoteFull, quoteShort } from '../appraisal/quote';
 import type { Engine } from '../engine';
 import { parseAmount } from '../lib/text';
-import { DEFAULT_SETTINGS, type AppraisalData, type AppraisalMode } from '../lib/types';
+import { DEFAULT_SETTINGS, type AppraisalData, type AppraisalMode, type Region } from '../lib/types';
 import type { Storage } from '../store/storage';
-import { appraisalRowsHtml, appraisalText } from './appraisalViews';
+import { appraisalRowsHtml, appraisalText, overlayAppraisalHtml } from './appraisalViews';
 import { $ } from './dom';
 
-export interface PanelDeps { engine: Engine; store: Storage; failed: ReadonlySet<string> }
+export interface PanelDeps {
+  engine: Engine;
+  store: Storage;
+  failed: ReadonlySet<string>;
+  /** the area marked for items, if any */
+  region(): Region | null;
+  /** a screen share or a screenshot is there to scan */
+  canScan(): boolean;
+  /** open the dialog that marks the area */
+  onMark(): void;
+  /** scanning was turned on or off */
+  onScan(on: boolean): void;
+}
 
 const CLEAR_LABEL = 'Clear';
 
-/** The appraisal panel: the list you build by hand (or, later, by hovering), what it is worth, and the quote. */
+/** The appraisal panel: the list you build by hand or by hovering items, what it is worth, and the quote. */
 export class AppraisalPanel {
   private data: AppraisalData;
+  readonly collector: HoverCollector;
   private clearArmed = 0;
+  private hint = '';
+  private hintWarn = false;
 
   constructor(private readonly d: PanelDeps) {
     this.data = d.store.loadAppraisal();
+    this.collector = new HoverCollector(d.engine, this.data);
     // settings saved by hand or by another version can hold anything: fall back to the defaults
     const s = d.engine.settings;
     if (!(s.appraisalMode in APPRAISAL_MODES)) s.appraisalMode = DEFAULT_SETTINGS.appraisalMode;
     if (!(s.bulkOffer > 0)) s.bulkOffer = DEFAULT_SETTINGS.bulkOffer;
+    if (s.appraisalArea !== 'any' && s.appraisalArea !== 'marked') s.appraisalArea = DEFAULT_SETTINGS.appraisalArea;
   }
 
   private get settings() { return this.d.engine.settings; }
+
+  get scanning(): boolean { return this.collector.scanning; }
 
   result(): AppraisalResult {
     return appraise(this.d.engine, this.data.entries, this.settings.appraisalMode, this.settings.bulkOffer);
   }
 
+  /** Where hovers count: near the marked area, or anywhere (also while no area is marked). */
+  area(): Region | null { return this.settings.appraisalArea === 'marked' ? this.d.region() : null; }
+
+  /** What the pop-out overlay shows of the appraisal. */
+  overlayHtml(): string { return overlayAppraisalHtml(this.result(), this.scanning, this.hint); }
+
   private save(): void { this.d.store.saveAppraisal(this.data); }
   private find(id: string | undefined) { return this.data.entries.find((x) => x.id === id); }
 
+  setHint(text: string, warn = false): void { this.hint = text; this.hintWarn = warn; }
+
+  /** Turns scanning on or off. Returns whether it is on: it can't start with nothing to scan. */
+  setScanning(on: boolean): boolean {
+    if (on && !this.d.canScan()) {
+      this.setHint('Start the screen capture first (or load a screenshot), then press Start scanning.', true);
+      this.render();
+      return false;
+    }
+    if (this.collector.scanning === on) return on;
+    this.collector.scanning = on;
+    this.collector.noTooltip();
+    this.setHint(on ? 'Scanning. Point at an item in the game: it is added a moment after the tooltip appears. Pause before moving over things you don\'t want counted.' : '');
+    this.render();
+    this.d.onScan(on);
+    return on;
+  }
+
+  toggleScanning(): void { this.setScanning(!this.scanning); }
+
+  /** A hover was read: say what it did, and show the new line. */
+  showEvent(ev: HoverEvent): void {
+    if (ev.kind === 'added' || ev.kind === 'fixed' || ev.kind === 'undone') this.save();
+    this.setHint(ev.text, !!ev.warn);
+    this.render(true);
+  }
+
   wire(): void {
-    const mode = $<HTMLSelectElement>('apMode'), bulk = $<HTMLInputElement>('apBulk');
+    const mode = $<HTMLSelectElement>('apMode'), bulk = $<HTMLInputElement>('apBulk'), area = $<HTMLSelectElement>('apArea');
     mode.value = this.settings.appraisalMode;
     bulk.value = String(this.settings.bulkOffer);
+    area.value = this.settings.appraisalArea;
     mode.addEventListener('change', () => {
       this.settings.appraisalMode = mode.value as AppraisalMode;
       this.d.store.saveSettings(this.settings);
@@ -50,6 +104,18 @@ export class AppraisalPanel {
       this.d.store.saveSettings(this.settings);
       this.render();
     });
+    area.addEventListener('change', () => {
+      this.settings.appraisalArea = area.value === 'marked' ? 'marked' : 'any';
+      this.d.store.saveSettings(this.settings);
+      this.setHint(this.settings.appraisalArea === 'marked' && !this.d.region() ? 'Press Mark area to draw the box around your item slots.' : '');
+      this.render();
+    });
+    $('apScan').addEventListener('click', () => this.toggleScanning());
+    $('apMark').addEventListener('click', () => this.d.onMark());
+    $('apUndo').addEventListener('click', () => {
+      const ev = this.collector.undo();
+      if (ev) this.showEvent(ev);
+    });
 
     const table = $('apTable');
     table.addEventListener('change', (e) => {
@@ -57,7 +123,7 @@ export class AppraisalPanel {
       if (!t.classList.contains('cellinput')) return;
       const entry = this.find(t.dataset.id);
       if (!entry) return;
-      if (t.dataset.field === 'qty') entry.qty = clampQty(parseInt(t.value.replace(/,/g, ''), 10));
+      if (t.dataset.field === 'qty') { entry.qty = clampQty(parseInt(t.value.replace(/,/g, ''), 10)); this.collector.confirm(entry.id); }
       else if (t.value.trim() === '') delete entry.price;
       else { const v = parseAmount(t.value); if (v) entry.price = v; }
       this.save(); t.blur(); this.render();
@@ -94,6 +160,7 @@ export class AppraisalPanel {
         return;
       }
       this.data.entries = [];
+      this.collector.forget();
       this.clearArmed = 0; clear.textContent = CLEAR_LABEL;
       this.save(); this.render();
       $('apMsg').textContent = 'Cleared.';
@@ -106,10 +173,24 @@ export class AppraisalPanel {
     catch { $('apMsg').textContent = "Couldn't copy. Select the quote text and copy it."; }
   }
 
-  render(): void {
+  /** `force` draws the table even with a box focused: a hover just changed it. */
+  render(force = false): void {
+    const typing = document.activeElement instanceof HTMLInputElement && document.activeElement.closest('#apTable');
+    const r = this.result(), t = appraisalText(r), on = this.scanning;
+    const scan = $<HTMLButtonElement>('apScan');
+    scan.textContent = on ? 'Pause scanning' : 'Start scanning hovers';
+    scan.classList.toggle('primary', !on);
+    scan.setAttribute('aria-pressed', String(on));
+    $('apState').textContent = on ? 'Scanning: point at your items' : 'Paused';
+    $('apState').dataset.on = String(on);
+    $<HTMLSelectElement>('apArea').value = this.settings.appraisalArea;
+    $<HTMLButtonElement>('apMark').disabled = !this.d.canScan();
+    $<HTMLButtonElement>('apUndo').disabled = !this.collector.canUndo;
+    $('apHint').textContent = this.hint;
+    $('apHint').hidden = !this.hint;
+    $('apHint').classList.toggle('bad', this.hintWarn);
     // typing in a box: leave the table alone until the change is made
-    if (document.activeElement instanceof HTMLInputElement && document.activeElement.closest('#apTable')) return;
-    const r = this.result(), t = appraisalText(r);
+    if (typing && !force) return;
     $('apMeta').textContent = t.meta;
     $('apBody').innerHTML = appraisalRowsHtml(r, this.d.engine.market, this.d.failed);
     $('apEmpty').hidden = r.lines.length > 0;
