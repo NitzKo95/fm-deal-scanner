@@ -67,12 +67,15 @@ export class MarketIndex {
 
 /**
  * What an NPC pays for one of them: a share of its shop price (half, by default), rounded down. Null when no NPC
- * shop sells it, or when NPC prices are turned off.
+ * shop sells it, when NPC prices are turned off, or when the market contradicts the guess: nobody sells for less
+ * than an NPC pays, so an item that trades under it (a quarter of the items on a real page, among them weapons with
+ * thousands of sales) has an NPC price lower than the share guessed, and that guess is not used for it.
  */
 export function npcSellPrice(mk: MarketItem | null, ratio: number): number | null {
   if (!mk?.npc || !(ratio > 0)) return null;
-  const v = Math.floor((mk.npc * Math.min(ratio, 100)) / 100);
-  return v > 0 ? v : null;
+  const pay = Math.floor((mk.npc * Math.min(ratio, 100)) / 100);
+  if (pay <= 0 || (mk.p && mk.p < pay)) return null;
+  return pay;
 }
 
 /** fewer than 5 sales, or copies that sell for very different prices */

@@ -82,7 +82,7 @@ const pctCell = (pct: number | null) => ({
 });
 
 const usualTip = (r: DisplayRow, mk: MarketItem | null) =>
-  (r.npc != null ? `An NPC pays ${fmtEach(r.npc)} each for it${r.npcFlip ? ', more than this listing costs' : ''}. ` : '')
+  (r.npc != null ? `An NPC pays about ${fmtEach(r.npc)} each for it (half its shop price)${r.npcProfit != null && r.npcProfit > 0 ? `, more than this listing costs` : ''}. ` : '')
   + (r.stats && r.usualBase ? `${fmtEach(r.usualBase)} × ${r.stats.mult.toFixed(2)} for its stats (${r.stats.summary}). ` : '')
   + (r.usualSrc === 'yours' ? 'Your price. ' : r.usualSrc === 'seen' ? 'From your own sightings. ' : '') + marketTip(mk);
 
@@ -102,7 +102,7 @@ export function shopRowHtml(r: DisplayRow, market: MarketIndex, failed?: Readonl
     <td class="n">${fmtEach(r.unit)}</td>
     <td class="n dim"${tip ? ` title="${esc(tip)}"` : ''}>${r.usual == null ? '–' : fmtEach(r.usual) + (r.stats ? '<span class="sub">by stats</span>' : '')}${r.npc != null ? `<span class="sub">NPC ${fmtEach(r.npc)}</span>` : ''}</td>
     <td class="n ${pct.cls}">${pct.text}</td>
-    <td class="n ${profCls}">${prof}</td>
+    <td class="n ${profCls}">${prof}${!sold && r.npcProfit != null && r.npcProfit > 0 ? `<span class="sub pos" title="An NPC pays more for it than this listing costs: selling it to an NPC would make ${fmt(r.npcProfit)}, with no sales fee">NPC ${signed(r.npcProfit)}</span>` : ''}</td>
     <td><span class="chip ${r.verdict}"${r.why ? ` title="${esc(r.why)}"` : ''}>${VERDICT[r.verdict]}</span></td>
   </tr>`;
 }

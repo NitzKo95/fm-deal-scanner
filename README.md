@@ -22,15 +22,20 @@ item list fills in for items the tracker doesn't list.
 ### NPC prices
 
 The tracker page also lists, for 450 or so items, the price an NPC shop charges for it (the "NPC shop" chip in its Source
-column). An NPC usually pays half of that when you sell it the item, so that is what the scanner uses (change the share
-under **Rules**, **NPC pays % of its shop price**; 0 ignores NPC prices):
+column). An NPC usually pays half of that when you sell it the item, so that is the guess the scanner makes (change the
+share under **Rules**, **NPC pays % of its shop price**; 0 ignores NPC prices).
 
-- **Shop:** each listing shows what an NPC pays under its usual price. A listing that costs at least your minimum profit
-  less than an NPC pays is a deal on its own, with no market price needed and no sales fee: buy it and sell it to the NPC.
-  It chimes and lands in **Deals this session** like any other, saying why.
-- **Appraisal:** an item is worth at least what an NPC pays. With no market price that is its price (marked *Rough*, tagged
-  *NPC price*); a lower market price is lifted to it. A price you type on a line stays as typed. Throwing stars are left
-  out, as they are priced per set.
+The guess is checked against the market, because it is wrong for some items: nobody sells for less than an NPC pays, so an
+item that trades under half its NPC shop price (a quarter of the items on a real page, among them weapons with thousands of
+sales around 10,000 against a 26,000 shop price) has its NPC price dropped. Only prices the market doesn't contradict are used.
+
+- **Shop:** the shop is still judged by the market and your sightings alone. Each listing shows what an NPC pays under its
+  usual price, and `NPC +5,001` beside the profit when an NPC pays more than the listing costs. Switch **NPC flips are deals**
+  on under **Rules** to also count such a listing as a deal (at your minimum profit, with no market price needed and no
+  sales fee): it then chimes and lands in **Deals this session**, saying why.
+- **Appraisal:** the market price is kept. An NPC's price is only the fallback for an item with no market price (marked
+  *Rough*, tagged *NPC price*), or for a copy whose stats would put it below what an NPC pays. A price you type stays as
+  typed. Throwing stars are left out, as they are priced per set.
 
 If you loaded the tracker page before this was added, load it again to get the NPC prices; the market line says when there
 are none. The page's NPC prices come from [NiaDB](https://meowdb.com/msclassic), which MesoWatch credits as used with their
