@@ -1,10 +1,10 @@
-import { APPRAISAL_MODES, appraise, type AppraisalResult } from '../appraisal/appraise';
+import { APPRAISAL_MODES, appraise, AS_ADDED, cleanAppraisalSort, nextAppraisalSort, sortLines, type AppraisalResult, type AppraisalSort } from '../appraisal/appraise';
 import { addEntry, clampQty, entryFor, parseAppraisalLines } from '../appraisal/entries';
 import { HoverCollector, type HoverEvent } from '../appraisal/hovers';
 import { quoteFull, quoteShort } from '../appraisal/quote';
 import type { Engine } from '../engine';
 import { parseAmount } from '../lib/text';
-import { DEFAULT_SETTINGS, type AppraisalData, type AppraisalEntry, type AppraisalMode, type Region } from '../lib/types';
+import { DEFAULT_SETTINGS, type AppraisalData, type AppraisalEntry, type AppraisalMode, type AppraisalSortCol, type Region } from '../lib/types';
 import type { Storage } from '../store/storage';
 import { appraisalRowsHtml, appraisalText, overlayAppraisalHtml } from './appraisalViews';
 import { $ } from './dom';
@@ -41,14 +41,29 @@ export class AppraisalPanel {
     if (!(s.appraisalMode in APPRAISAL_MODES)) s.appraisalMode = DEFAULT_SETTINGS.appraisalMode;
     if (!(s.bulkOffer > 0)) s.bulkOffer = DEFAULT_SETTINGS.bulkOffer;
     if (s.appraisalArea !== 'any' && s.appraisalArea !== 'marked') s.appraisalArea = DEFAULT_SETTINGS.appraisalArea;
+    const o = cleanAppraisalSort(s.appraisalSort, s.appraisalSortDir);
+    s.appraisalSort = o.col; s.appraisalSortDir = o.dir;
   }
 
   private get settings() { return this.d.engine.settings; }
 
   get scanning(): boolean { return this.collector.scanning; }
 
+  /** How the lines are ordered: the saved choice. */
+  sort(): AppraisalSort { return cleanAppraisalSort(this.settings.appraisalSort, this.settings.appraisalSortDir); }
+
+  private setSort(s: AppraisalSort): void {
+    this.settings.appraisalSort = s.col;
+    this.settings.appraisalSortDir = s.dir;
+    this.d.store.saveSettings(this.settings);
+    this.render(true);
+  }
+
+  /** The appraisal, its lines in the order chosen: the table and the copied list follow it. */
   result(): AppraisalResult {
-    return appraise(this.d.engine, this.data.entries, this.settings.appraisalMode, this.settings.bulkOffer);
+    const r = appraise(this.d.engine, this.data.entries, this.settings.appraisalMode, this.settings.bulkOffer);
+    r.lines = sortLines(r.lines, this.sort());
+    return r;
   }
 
   /** Where hovers count: near the marked area, or anywhere (also while no area is marked). */
@@ -125,6 +140,18 @@ export class AppraisalPanel {
       this.setHint(this.settings.appraisalArea === 'marked' && !this.d.region() ? 'Press Mark area to draw the box around your item slots.' : '');
       this.render();
     });
+    // order the lines: a click on a column (again to flip), the Order list, or back to the order they were added in
+    for (const th of document.querySelectorAll<HTMLElement>('#apTable th.sortable')) {
+      const pick = () => this.setSort(nextAppraisalSort(this.sort(), th.dataset.col as AppraisalSortCol));
+      th.addEventListener('click', pick);
+      th.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+    }
+    const order = $<HTMLSelectElement>('apOrder');
+    order.addEventListener('change', () => {
+      const [col, dir] = order.value.split(':');
+      this.setSort(cleanAppraisalSort(col, Number(dir)));
+    });
+    $('apSortReset').addEventListener('click', () => this.setSort(AS_ADDED));
     $('apScan').addEventListener('click', () => this.toggleScanning());
     $('apMark').addEventListener('click', () => this.d.onMark());
     $('apUndo').addEventListener('click', () => {
@@ -204,6 +231,16 @@ export class AppraisalPanel {
     $('apHint').textContent = this.hint;
     $('apHint').hidden = !this.hint;
     $('apHint').classList.toggle('bad', this.hintWarn);
+    // the order: arrows on the headers, the Order list, and the way back
+    const s = this.sort();
+    for (const th of document.querySelectorAll<HTMLElement>('#apTable th.sortable')) {
+      const on = th.dataset.col === s.col;
+      th.innerHTML = (th.textContent ?? '').replace(/[▲▼]/g, '').trim() + (on ? `<span class="arrow">${s.dir > 0 ? '▲' : '▼'}</span>` : '');
+      th.setAttribute('aria-sort', on ? (s.dir > 0 ? 'ascending' : 'descending') : 'none');
+    }
+    const order = $<HTMLSelectElement>('apOrder'), key = s.col === 'added' ? 'added' : `${s.col}:${s.dir}`;
+    order.value = [...order.options].some((o) => o.value === key) ? key : 'custom';
+    $('apSortReset').hidden = s.col === 'added';
     // typing in a box: leave the table alone until the change is made
     if (typing && !force) return;
     $('apMeta').textContent = t.meta;

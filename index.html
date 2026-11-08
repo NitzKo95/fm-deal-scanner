@@ -107,7 +107,7 @@
   <section class="panel lead a-appr" aria-labelledby="hAppr">
     <div class="panel-head">
       <h2 id="hAppr">Appraisal</h2>
-      <span class="meta" id="apMeta">Nothing added yet</span>
+      <span class="headtools"><button class="btn small" id="apSortReset" hidden title="Back to the order the lines were added in">As added</button><span class="meta" id="apMeta">Nothing added yet</span></span>
     </div>
     <div class="panel-body">
       <p class="note">What a pile of items is worth, for when someone asks "how much for all?". Press <b>Start scanning hovers</b> and point at your items in the game, one by one: each is added as its tooltip shows. Pause before moving over things you don't want counted. Or type the names below.</p>
@@ -124,15 +124,17 @@
         <label class="field"><span>Prices</span>
           <select id="apMode"><option value="fair">Fair</option><option value="greedy">Greedy</option></select></label>
         <label class="field"><span>Offer <em>% of the total</em></span><input id="apBulk" type="number" min="1" max="300" step="1"></label>
+        <label class="field"><span>Order</span>
+          <select id="apOrder"><option value="added">As added</option><option value="total:-1">Most valuable first</option><option value="name:1">Name, A to Z</option><option value="qty:-1">Most of them first</option><option value="unit:-1">Dearest each first</option><option value="custom" hidden>Custom</option></select></label>
         <p class="note" id="apModeNote"></p>
       </div>
       <div class="tablewrap">
         <table id="apTable" hidden>
           <thead><tr>
-            <th>Item</th>
-            <th class="n">Qty</th>
-            <th class="n" title="Type a price to use instead of the market's, for this line only">Each</th>
-            <th class="n">Total</th>
+            <th class="sortable" data-col="name" tabindex="0">Item</th>
+            <th class="sortable n" data-col="qty" tabindex="0">Qty</th>
+            <th class="sortable n" data-col="unit" tabindex="0" title="Type a price to use instead of the market's, for this line only. Click to put the dearest first.">Each</th>
+            <th class="sortable n" data-col="total" tabindex="0" title="Click to put the most valuable first">Total</th>
             <th></th>
             <th></th>
           </tr></thead>

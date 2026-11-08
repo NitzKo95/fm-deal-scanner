@@ -35,6 +35,10 @@ the running total and the same Pause button.
 **By typing.** Type or paste item names with a count (`Cape INT Scroll: Lesser x3`). Type a price on any line to use
 your own for that line, skip a line you're keeping, and set an **Offer** percentage for taking everything.
 **Copy quote** puts a one-line total on the clipboard for the game's chat; **Copy full list** gives every line.
+Click a column heading (**Total** puts the most valuable first; click again to flip), or pick from the **Order**
+list, which also works on a phone, to order the lines. **As added** goes back to the order they were added in.
+Skipped lines and lines with no price stay at the bottom, the copied list follows the same order, and the choice is
+kept.
 
 **The number on a stack is not read.** A scroll or potion hovered is added as one stack; type how many you have (the
 line is marked until you do). Reading the little number off the slot was tried and left out: it needs the exact slot
