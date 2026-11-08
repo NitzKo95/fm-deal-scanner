@@ -34,7 +34,7 @@ const MACPERM = 'macOS refused the capture. In System Settings → Privacy &amp;
 /** Rules inputs and the settings they edit. */
 const SETTING_INPUTS: Record<string, keyof Settings> = {
   setDiscount: 'discount', setMinProfit: 'minProfit', setFee: 'fee', setBase: 'base', setMarket: 'market', setArea: 'area',
-  setStats: 'readStats', setStatPct: 'statPct', setSlotWorth: 'slotWorth', setNpc: 'npcRatio', setMinSeen: 'minSeen', setInterval: 'interval',
+  setStats: 'readStats', setStatPct: 'statPct', setSlotWorth: 'slotWorth', setNpc: 'npcRatio', setNpcDeals: 'npcDeals', setMinSeen: 'minSeen', setInterval: 'interval',
 };
 
 /** The page: wires the capture, the scanner and the shop to the controls and the tables. */

@@ -64,6 +64,7 @@ export function evaluate(e: Engine, row: Judged): Evaluation {
   const out: Evaluation = {
     verdict: 'new', usual: u?.value ?? null, usualBase, usualSrc: u?.src ?? null, stats,
     pct: null, profit: null, target: false, why: '', npc: npcEach, npcFlip: false,
+    npcProfit: npcEach == null ? null : Math.round(npcEach * row.units - row.price),
   };
   if (row.greyed) return { ...out, verdict: 'sold' };
   if (u) {
@@ -80,10 +81,10 @@ export function evaluate(e: Engine, row: Judged): Evaluation {
       : 'The market price comes from fewer than 5 sales.';
   }
   if (it?.buyUnder && row.unit <= it.buyUnder) { out.verdict = 'deal'; out.target = true; out.why = ''; }
-  // Buying it to sell straight to an NPC needs no market and no sales fee: if that pays enough, it is a deal
-  if (npcEach != null && !row.unsure) {
-    const npcProfit = Math.round(npcEach * row.units - row.price);
-    if (npcProfit >= e.settings.minProfit && out.verdict !== 'deal') { out.verdict = 'deal'; out.npcFlip = true; out.profit = npcProfit; out.why = ''; }
+  // Buying it to sell straight to an NPC needs no market and no sales fee. That only makes it a deal when asked to:
+  // the shop scanner judges listings against the market and your sightings, and the NPC price is only shown beside them
+  if (e.settings.npcDeals === 'on' && out.npcProfit != null && !row.unsure) {
+    if (out.npcProfit >= e.settings.minProfit && out.verdict !== 'deal') { out.verdict = 'deal'; out.npcFlip = true; out.profit = out.npcProfit; out.why = ''; }
   }
   if (row.unsure && out.verdict === 'deal') { out.verdict = 'unsure'; out.why = "The price didn't read cleanly."; }
   return out;
