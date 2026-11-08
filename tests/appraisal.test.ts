@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { appraise, appraiseEntry } from '../src/appraisal/appraise';
+import { appraise, appraiseEntry, AS_ADDED, cleanAppraisalSort, nextAppraisalSort, sortLines } from '../src/appraisal/appraise';
 import { addEntry, cleanEntries, clampQty, entryFor, MAX_QTY, parseAppraisalLines } from '../src/appraisal/entries';
 import { quoteFull, quoteShort } from '../src/appraisal/quote';
 import { DEFAULT_SETTINGS, type AppraisalEntry, type TooltipRead } from '../src/lib/types';
@@ -222,5 +222,83 @@ describe('AppraisalPanel', () => {
     const p = new AppraisalPanel({ engine: en, store: st, failed: new Set(), region: () => null, canScan: () => false, onMark: () => {}, onScan: (v) => { on = v; } });
     expect(p.scanning).toBe(false);
     expect(on).toBeNull();
+  });
+});
+
+describe('ordering the lines', () => {
+  // added in this order; Traus is skipped, Mystery Thing has no price
+  const lines = () => appraise(e, [
+    entry('Lemona'), entry('Gloves Attack Scroll: Greater', 2), entry('Mystery Thing', 3), entry('Traus', 1, { ignored: true }),
+    entry('Wolbi Throwing Stars', 10), entry('Gloves Attack Scroll: Intermediate'),
+  ], 'fair').lines;
+  const order = (sort?: Parameters<typeof sortLines>[1]) => sortLines(lines(), sort).map((l) => l.name);
+
+  it('keeps the order the lines were added in by default', () => {
+    expect(order()).toEqual(['Lemona', 'Gloves Attack Scroll: Greater', 'Mystery Thing', 'Traus', 'Wolbi Throwing Stars', 'Gloves Attack Scroll: Intermediate']);
+    expect(order(AS_ADDED)).toEqual(order());
+  });
+
+  it('puts the most valuable first, then the unpriced, then the skipped', () => {
+    expect(order({ col: 'total', dir: -1 })).toEqual(['Gloves Attack Scroll: Intermediate', 'Gloves Attack Scroll: Greater', 'Wolbi Throwing Stars', 'Lemona', 'Mystery Thing', 'Traus']);
+    expect(order({ col: 'total', dir: 1 })).toEqual(['Lemona', 'Wolbi Throwing Stars', 'Gloves Attack Scroll: Greater', 'Gloves Attack Scroll: Intermediate', 'Mystery Thing', 'Traus']);
+  });
+
+  it('orders by name, quantity and price each', () => {
+    expect(order({ col: 'name', dir: 1 })).toEqual(['Gloves Attack Scroll: Greater', 'Gloves Attack Scroll: Intermediate', 'Lemona', 'Mystery Thing', 'Wolbi Throwing Stars', 'Traus']);
+    expect(order({ col: 'name', dir: -1 })).toEqual(['Wolbi Throwing Stars', 'Mystery Thing', 'Lemona', 'Gloves Attack Scroll: Intermediate', 'Gloves Attack Scroll: Greater', 'Traus']);
+    // ties (Lemona and Intermediate are one each) keep the order they were added in
+    expect(order({ col: 'qty', dir: -1 })).toEqual(['Wolbi Throwing Stars', 'Mystery Thing', 'Gloves Attack Scroll: Greater', 'Lemona', 'Gloves Attack Scroll: Intermediate', 'Traus']);
+    expect(order({ col: 'unit', dir: -1 })).toEqual(['Gloves Attack Scroll: Intermediate', 'Gloves Attack Scroll: Greater', 'Lemona', 'Wolbi Throwing Stars', 'Mystery Thing', 'Traus']);
+  });
+
+  it('keeps skipped lines last whichever way a column runs', () => {
+    for (const col of ['name', 'qty', 'unit', 'total'] as const) for (const dir of [1, -1] as const) {
+      expect(order({ col, dir }).at(-1), `${col} ${dir}`).toBe('Traus');
+    }
+  });
+
+  it('leaves the lines it was given alone, and the totals the same in any order', () => {
+    const given = lines();
+    const before = given.map((l) => l.name);
+    sortLines(given, { col: 'total', dir: -1 });
+    expect(given.map((l) => l.name)).toEqual(before);
+    const r = appraise(e, [entry('Lemona'), entry('Gloves Attack Scroll: Greater', 2)], 'fair');
+    expect(sortLines(r.lines, { col: 'total', dir: -1 }).map((l) => l.total)).toEqual([860000, 21000]);
+    expect(r.total).toBe(881000);
+  });
+
+  it('chooses a column: the same one flips, another starts the way that suits it', () => {
+    expect(nextAppraisalSort(AS_ADDED, 'total')).toEqual({ col: 'total', dir: -1 });
+    expect(nextAppraisalSort({ col: 'total', dir: -1 }, 'total')).toEqual({ col: 'total', dir: 1 });
+    expect(nextAppraisalSort({ col: 'total', dir: -1 }, 'name')).toEqual({ col: 'name', dir: 1 });
+    expect(nextAppraisalSort(AS_ADDED, 'qty')).toEqual({ col: 'qty', dir: -1 });
+    expect(nextAppraisalSort(AS_ADDED, 'unit')).toEqual({ col: 'unit', dir: -1 });
+  });
+
+  it('takes the order lines were added in for a saved choice it cannot read', () => {
+    expect(cleanAppraisalSort('total', -1)).toEqual({ col: 'total', dir: -1 });
+    expect(cleanAppraisalSort('total', 'down')).toEqual({ col: 'total', dir: 1 });
+    expect(cleanAppraisalSort('price', -1)).toEqual(AS_ADDED);
+    expect(cleanAppraisalSort(undefined, undefined)).toEqual(AS_ADDED);
+  });
+
+  it('puts the copied list in the same order', () => {
+    const r = appraise(e, [entry('Lemona'), entry('Gloves Attack Scroll: Greater', 2)], 'fair');
+    r.lines = sortLines(r.lines, { col: 'total', dir: -1 });
+    expect(quoteFull(r).split('\n')[1]).toBe('Gloves Attack Scroll: Greater ×2 = 860,000');
+  });
+
+  it('is part of the saved settings, and a panel falls back when they are nonsense', () => {
+    expect(DEFAULT_SETTINGS).toMatchObject({ appraisalSort: 'added', appraisalSortDir: 1 });
+    const mk = (over: Record<string, unknown>) => {
+      const en = engine();
+      Object.assign(en.settings, over);
+      const p = new AppraisalPanel({ engine: en, store: new Storage(null), failed: new Set(), region: () => null, canScan: () => true, onMark: () => {}, onScan: () => {} });
+      p.importEntries([{ id: 'a', key: 'lemona', name: 'Lemona', qty: 1 }, { id: 'b', key: 'gloves attack scroll greater', name: 'Gloves Attack Scroll: Greater', qty: 2 }]);
+      return p;
+    };
+    expect(mk({ appraisalSort: 'total', appraisalSortDir: -1 }).result().lines.map((l) => l.name)).toEqual(['Gloves Attack Scroll: Greater', 'Lemona']);
+    expect(mk({ appraisalSort: 'nope', appraisalSortDir: -1 }).sort()).toEqual(AS_ADDED);
+    expect(mk({ appraisalSort: 'nope' }).result().lines.map((l) => l.name)).toEqual(['Lemona', 'Gloves Attack Scroll: Greater']);
   });
 });

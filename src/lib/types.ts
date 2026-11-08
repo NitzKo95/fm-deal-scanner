@@ -9,6 +9,9 @@
 export type PriceMode = 'cheap' | 'fair' | 'greedy';
 export type AppraisalMode = Exclude<PriceMode, 'cheap'>;
 
+/** What the appraisal's table is ordered by. `added` is the default: the order the lines were added in. */
+export type AppraisalSortCol = 'added' | 'name' | 'qty' | 'unit' | 'total';
+
 /** What the open shop's table is ordered by. `best` is the default: deals first, then by how far under the usual price. */
 export type ShopSortCol = 'best' | 'name' | 'unit' | 'usual' | 'pct' | 'profit';
 
@@ -37,6 +40,9 @@ export interface Settings {
   /** how the open shop's listings are ordered, and which way */
   shopSort: ShopSortCol;
   shopSortDir: 1 | -1;
+  /** how the appraisal's lines are ordered, and which way */
+  appraisalSort: AppraisalSortCol;
+  appraisalSortDir: 1 | -1;
   /** which price the appraisal uses */
   appraisalMode: AppraisalMode;
   /** count a hover anywhere, or only near the area you marked */
@@ -48,7 +54,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   discount: 25, minProfit: 3000, fee: 3, base: 'median', minSeen: 3, interval: 0.8, sound: true,
   market: 'on', area: 'auto', readStats: 'on', statPct: 8, slotWorth: 1,
-  shopSort: 'best', shopSortDir: 1, appraisalMode: 'fair', appraisalArea: 'any', bulkOffer: 100,
+  shopSort: 'best', shopSortDir: 1, appraisalSort: 'added', appraisalSortDir: 1, appraisalMode: 'fair', appraisalArea: 'any', bulkOffer: 100,
 };
 
 /** [time ms, price per unit, units] */

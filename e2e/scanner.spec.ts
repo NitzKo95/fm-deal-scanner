@@ -329,6 +329,61 @@ test('orders the open shop by a column, most profit first, and remembers it', as
   expect(errors).toEqual([]);
 });
 
+test('orders the appraisal by a column, most valuable first, and remembers it', async ({ page }) => {
+  const { errors } = await open(page);
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.setInputFiles('#fileMarket', { name: 'tracker.html', mimeType: 'text/html', buffer: Buffer.from(TRACKER) });
+  await page.fill('#apAdd', 'Lemona\nWolbi Throwing Stars x2\nCape INT Scroll: Lesser x3\nMystery Thing x4\nShoes Speed Scroll: Chaos x5');
+  await page.click('#apAddBtn');
+  const names = async () => (await page.locator('#apBody .nm-n').allTextContents()).map((n) => n.trim());
+  const added = ['Lemona', 'Wolbi Throwing Stars', 'Cape INT Scroll: Lesser', 'Mystery Thing', 'Shoes Speed Scroll: Chaos'];
+  expect(await names()).toEqual(added);
+  await expect(page.locator('#apSortReset')).toBeHidden();
+  await expect(page.locator('#apOrder')).toHaveValue('added');
+
+  // Total: the most valuable first; the line with no price goes last
+  await page.click('#apTable th[data-col="total"]');
+  expect(await names()).toEqual(['Cape INT Scroll: Lesser', 'Shoes Speed Scroll: Chaos', 'Lemona', 'Wolbi Throwing Stars', 'Mystery Thing']);
+  await expect(page.locator('#apTable th[data-col="total"]')).toHaveAttribute('aria-sort', 'descending');
+  await expect(page.locator('#apOrder')).toHaveValue('total:-1');
+  await expect(page.locator('#apSortReset')).toBeVisible();
+  // the total does not change, and the copied list follows the order
+  await expect(page.locator('#apTotal')).toHaveText('325,998');
+  await page.click('#apCopyFull');
+  const full = (await page.evaluate(() => navigator.clipboard.readText())).split('\n');
+  expect(full.slice(1, 3)).toEqual(['Cape INT Scroll: Lesser ×3 = 195,000', 'Shoes Speed Scroll: Chaos ×5 = 105,000']);
+
+  // again flips it; a column of text starts A to Z
+  await page.click('#apTable th[data-col="total"]');
+  expect((await names()).slice(0, 2)).toEqual(['Wolbi Throwing Stars', 'Lemona']);
+  await expect(page.locator('#apOrder')).toHaveValue('custom');
+  await page.keyboard.press('Tab');
+  await page.focus('#apTable th[data-col="name"]');
+  await page.keyboard.press('Enter');
+  expect(await names()).toEqual(['Cape INT Scroll: Lesser', 'Lemona', 'Mystery Thing', 'Shoes Speed Scroll: Chaos', 'Wolbi Throwing Stars']);
+  await expect(page.locator('#apTable th[data-col="total"]')).toHaveAttribute('aria-sort', 'none');
+
+  // the Order list does the same, which is how it works on a phone, where the headers are hidden
+  await page.selectOption('#apOrder', 'qty:-1');
+  expect((await names()).slice(0, 3)).toEqual(['Shoes Speed Scroll: Chaos', 'Mystery Thing', 'Cape INT Scroll: Lesser']);
+  await expect(page.locator('#apTable th[data-col="qty"]')).toHaveAttribute('aria-sort', 'descending');
+
+  // a line added now lands where the order says, and the choice survives a reload
+  await page.fill('#apAdd', 'Traus x9');
+  await page.click('#apAddBtn');
+  expect((await names())[0]).toBe('Traus');
+  await page.reload();
+  await expect(page.locator('#apOrder')).toHaveValue('qty:-1');
+  await expect(page.locator('#apSortReset')).toBeVisible();
+  expect((await names())[0]).toBe('Traus');
+
+  // back to the order they were added in
+  await page.click('#apSortReset');
+  await expect(page.locator('#apSortReset')).toBeHidden();
+  expect(await names()).toEqual([...added, 'Traus']);
+  expect(errors).toEqual([]);
+});
+
 test('fits a phone screen without scrolling sideways', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await open(page);
