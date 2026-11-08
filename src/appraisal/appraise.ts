@@ -1,5 +1,5 @@
 import type { Engine } from '../engine';
-import type { AppraisalEntry, AppraisalMode, StatValue, UsualSource } from '../lib/types';
+import type { AppraisalEntry, AppraisalMode, AppraisalSortCol, StatValue, UsualSource } from '../lib/types';
 import { isSetItem } from '../market/marketIndex';
 import { usualPrice } from '../pricing/evaluate';
 import { statValue } from '../tooltip/statValue';
@@ -80,4 +80,40 @@ export function appraise(e: Engine, entries: readonly AppraisalEntry[], mode: Ap
     if (l.tag === 'rough') rough += l.total ?? 0;
   }
   return { mode, lines, total, rough, unpriced, ignored, kinds, items, bulk, quote: Math.round((total * bulk) / 100) };
+}
+
+export interface AppraisalSort { col: AppraisalSortCol; dir: 1 | -1 }
+export const AS_ADDED: AppraisalSort = { col: 'added', dir: 1 };
+export const APPRAISAL_SORT_COLS: readonly AppraisalSortCol[] = ['added', 'name', 'qty', 'unit', 'total'];
+
+/** The way a column starts when first clicked: the most valuable, the biggest stack, the dearest price first. */
+const FIRST_DIR: Record<AppraisalSortCol, 1 | -1> = { added: 1, name: 1, qty: -1, unit: -1, total: -1 };
+
+/** The sort after a click on a column: the same column flips, another starts in its natural direction. */
+export const nextAppraisalSort = (cur: AppraisalSort, col: AppraisalSortCol): AppraisalSort =>
+  col === cur.col ? { col, dir: (-cur.dir) as 1 | -1 } : { col, dir: FIRST_DIR[col] };
+
+/** A saved sort, checked: anything unknown is the order the lines were added in. */
+export const cleanAppraisalSort = (col: unknown, dir: unknown): AppraisalSort =>
+  APPRAISAL_SORT_COLS.includes(col as AppraisalSortCol) ? { col: col as AppraisalSortCol, dir: dir === -1 ? -1 : 1 } : AS_ADDED;
+
+const value = (l: AppraisalLine, col: AppraisalSortCol): number | string | null =>
+  col === 'name' ? l.name : col === 'qty' ? l.entry.qty : col === 'unit' ? l.unit : col === 'total' ? l.total : null;
+
+/**
+ * The lines in the order asked for, as a new list. Skipped lines stay last, and so do lines with no price when
+ * ordering by what they are worth (there is nothing to order them by); ties keep the order the lines were added in.
+ */
+export function sortLines(lines: readonly AppraisalLine[], sort: AppraisalSort = AS_ADDED): AppraisalLine[] {
+  const at = new Map(lines.map((l, i) => [l, i] as const));
+  const added = (a: AppraisalLine, b: AppraisalLine) => at.get(a)! - at.get(b)!;
+  if (sort.col === 'added') return [...lines];
+  return [...lines].sort((a, b) => {
+    const skipped = (a.tag === 'ignored' ? 1 : 0) - (b.tag === 'ignored' ? 1 : 0);
+    if (skipped) return skipped;
+    const x = value(a, sort.col), y = value(b, sort.col);
+    if (x == null || y == null) return x == null && y == null ? added(a, b) : x == null ? 1 : -1;
+    const d = typeof x === 'string' ? x.localeCompare(y as string) : x - (y as number);
+    return d ? d * sort.dir : added(a, b);
+  });
 }
