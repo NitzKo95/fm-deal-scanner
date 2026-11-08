@@ -26,15 +26,16 @@ function iconFor(mk: MarketItem | null, id: number | null, failed: ReadonlySet<s
     : `<span class="ico unk" data-e="?" title="Not on the price tracker" aria-hidden="true">${img}</span>`;
 }
 
-export interface DealLine { name: string; listing: string; why: string; profit: string }
+export interface DealLine { name: string; listing: string; why: string; profit: string; /** what the profit is after: the sales fee, or nothing when an NPC buys it */ profitNote: string }
 
 /** A listing and what it's measured against, in words. */
 export function dealLine(d: DisplayRow, market: MarketIndex): DealLine {
   const mk = market.get(d.key);
   const listing = `${d.set ? `set of ${d.qty}` : d.qty} for ${fmt(d.price)}` + (d.units > 1 ? ` (${fmtEach(d.unit)} each)` : '');
   const from = d.usualSrc === 'yours' ? ' (your price)' : d.usualSrc === 'market' ? ` (market${mk ? `, ${salesTxt(mk.s)}` : ''})` : '';
-  const why = d.target && d.usual == null ? 'under your buy-under price' : `usual ${fmtEach(d.usual)}${from}` + (d.stats ? `, for its stats: ${d.stats.summary}` : '');
-  return { name: d.name + (d.truncated ? '…' : ''), listing, why, profit: d.profit != null ? signed(d.profit) : '' };
+  const why = d.npcFlip && d.npc != null ? `an NPC pays ${fmtEach(d.npc)} each for it`
+    : d.target && d.usual == null ? 'under your buy-under price' : `usual ${fmtEach(d.usual)}${from}` + (d.stats ? `, for its stats: ${d.stats.summary}` : '');
+  return { name: d.name + (d.truncated ? '…' : ''), listing, why, profit: d.profit != null ? signed(d.profit) : '', profitNote: d.npcFlip ? 'selling to an NPC' : 'after fee' };
 }
 
 export interface ShopSort { col: ShopSortCol; dir: 1 | -1 }
@@ -81,7 +82,8 @@ const pctCell = (pct: number | null) => ({
 });
 
 const usualTip = (r: DisplayRow, mk: MarketItem | null) =>
-  (r.stats && r.usualBase ? `${fmtEach(r.usualBase)} × ${r.stats.mult.toFixed(2)} for its stats (${r.stats.summary}). ` : '')
+  (r.npc != null ? `An NPC pays ${fmtEach(r.npc)} each for it${r.npcFlip ? ', more than this listing costs' : ''}. ` : '')
+  + (r.stats && r.usualBase ? `${fmtEach(r.usualBase)} × ${r.stats.mult.toFixed(2)} for its stats (${r.stats.summary}). ` : '')
   + (r.usualSrc === 'yours' ? 'Your price. ' : r.usualSrc === 'seen' ? 'From your own sightings. ' : '') + marketTip(mk);
 
 /** A row reads like the game's own shop row: the name, and under it "1 for 79,999". */
@@ -98,7 +100,7 @@ export function shopRowHtml(r: DisplayRow, market: MarketIndex, failed?: Readonl
   return `<tr class="v-${r.verdict}">
     <td class="name"><span class="nm">${iconHtml(market, r.key, failed)}<span class="nm-t"><span class="nm-n">${label}</span><span class="sub"${r.set ? ` title="One item holding ${r.qty}, priced as a set"` : ''}>${esc(listing)}</span></span></span></td>
     <td class="n">${fmtEach(r.unit)}</td>
-    <td class="n dim"${tip ? ` title="${esc(tip)}"` : ''}>${r.usual == null ? '–' : fmtEach(r.usual) + (r.stats ? '<span class="sub">by stats</span>' : '')}</td>
+    <td class="n dim"${tip ? ` title="${esc(tip)}"` : ''}>${r.usual == null ? '–' : fmtEach(r.usual) + (r.stats ? '<span class="sub">by stats</span>' : '')}${r.npc != null ? `<span class="sub">NPC ${fmtEach(r.npc)}</span>` : ''}</td>
     <td class="n ${pct.cls}">${pct.text}</td>
     <td class="n ${profCls}">${prof}</td>
     <td><span class="chip ${r.verdict}"${r.why ? ` title="${esc(r.why)}"` : ''}>${VERDICT[r.verdict]}</span></td>
@@ -204,7 +206,8 @@ export function marketInfo(m: MarketIndex, now: number): string {
   if (!n) return 'None loaded yet.';
   const old = d.asOf && now - d.asOf > 3 * DAY;
   return `<b>${fmt(n)} prices</b> for ${esc(d.world || 'your world')}, from ${esc(d.updated || new Date(d.asOf).toLocaleDateString())} (${ago(d.asOf, now)}).`
-    + (old ? ' <span class="warn">Getting old, update them.</span>' : '');
+    + (old ? ' <span class="warn">Getting old, update them.</span>' : '')
+    + (m.withNpc ? ` ${fmt(m.withNpc)} have an NPC shop price.` : ' <span class="warn">No NPC prices: load the tracker page again to get them.</span>');
 }
 
 export const rulesSummary = (st: Settings): string =>

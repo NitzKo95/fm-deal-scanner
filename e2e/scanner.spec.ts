@@ -23,11 +23,11 @@ function hoverOverShop(f: number, sw: number, sh: number): Pixels {
 }
 
 /** A saved tracker page, made up: the parts of the table the importer reads. */
-type TrackerRow = [id: string, name: string, category: string, price: number, sales: number, emoji: string];
+type TrackerRow = [id: string, name: string, category: string, price: number, sales: number, emoji: string, npcShopPrice?: number];
 const trackerPage = (rows: TrackerRow[]) => `<!doctype html><html><body><div id="world"><span>Windia</span></div>
 <button id="updated" title="Last updated Nov 4, 9:00 AM"></button><table><tbody id="rows">
-${rows.map(([id, n, c, p, s, e]) => `<tr data-id="basil:${id}"><td><img data-fallback="${e}"><span class="item-name" title="${n}">${n}</span><span class="item-cat">${c}</span></td>
-<td data-col="price"><span class="meso" title="${Number(p).toLocaleString('en-US')} mesos">x</span></td><td><span class="sales-count">${s}</span></td></tr>`).join('\n')}
+${rows.map(([id, n, c, p, s, e, npc]) => `<tr data-id="basil:${id}"><td><img data-fallback="${e}"><span class="item-name" title="${n}">${n}</span><span class="item-cat">${c}</span></td>
+<td data-col="price"><span class="meso" title="${Number(p).toLocaleString('en-US')} mesos">x</span></td><td><span class="sales-count">${s}</span></td>${npc ? `<td data-col="from"><span class="src-chips"><span class="src-chip src-shop" data-src-tip="NPC shop|Test NPC (Henesys) · ${npc.toLocaleString('en-US')} mesos each"></span></span></td>` : ''}</tr>`).join('\n')}
 </tbody></table></body></html>`;
 
 const TRACKER = trackerPage([
@@ -381,6 +381,56 @@ test('orders the appraisal by a column, most valuable first, and remembers it', 
   await page.click('#apSortReset');
   await expect(page.locator('#apSortReset')).toBeHidden();
   expect(await names()).toEqual([...added, 'Traus']);
+  expect(errors).toEqual([]);
+});
+
+test('uses what an NPC pays: a deal in the shop, a floor in the appraisal, and off when set to 0', async ({ page }) => {
+  const { errors } = await open(page);
+  // Lemona: the market says 21,000, an NPC shop sells it at 50,000 so an NPC pays 25,000 for it
+  const withNpc = trackerPage([
+    ['01472013', 'Dark Guardian', 'Weapons', 120000, 300, '🗡️'], ['01072044', 'Bronze Chain Boots', 'Equips', 12000, 60, '👢'],
+    ['01082003', 'Lemona', 'Equips', 21000, 50, '🧤', 50000], ['02041019', 'Cape INT Scroll: Lesser', 'Scrolls', 65000, 955, '📜'],
+    ['02040703', 'Shoes Speed Scroll: Chaos', 'Scrolls', 21000, 120, '📜'],
+  ]);
+  await page.setInputFiles('#fileMarket', { name: 'tracker.html', mimeType: 'text/html', buffer: Buffer.from(withNpc) });
+  await expect(page.locator('#marketMsg')).toContainText('1 have an NPC shop price');
+  await expect(page.locator('#marketAge')).toContainText('1 have an NPC shop price');
+
+  // in the shop: Lemona at 19,999 is only "fair" by the market, but an NPC pays 5,001 more than it costs
+  await loadShot(page, screenFile('shop.png', placeOn(scaleBy(loadPng('shop-list.png'), 0.5), 1440, 900, 400, 200)));
+  const lemona = page.locator('#shopTable tbody tr', { hasText: 'Lemona' });
+  await expect(lemona.locator('.chip')).toHaveText('Deal');
+  await expect(lemona.locator('td').nth(2)).toContainText('NPC 25,000');
+  await expect(lemona.locator('td').nth(4)).toContainText('+5,001');
+  await expect(page.locator('#dealProfit')).toContainText('selling to an NPC');
+  await expect(page.locator('#dealList li', { hasText: 'Lemona' })).toContainText('an NPC pays 25,000 each for it');
+  // the other listings have no NPC price
+  await expect(page.locator('#shopTable tbody tr', { hasText: 'Dark Guardian' }).locator('td').nth(2)).not.toContainText('NPC');
+
+  // in the appraisal: an NPC pays more than the market, so it is worth at least that
+  await page.fill('#apAdd', 'Lemona x2\nCape INT Scroll: Lesser');
+  await page.click('#apAddBtn');
+  await expect(page.locator('#apTotal')).toHaveText('115,000');   // 2 × 25,000 + 65,000
+  const row = page.locator('#apBody tr', { hasText: 'Lemona' });
+  await expect(row).toContainText('NPC price');
+  await expect(row).toContainText('NPC pays 25,000');
+  await expect(row.locator('.chip')).toHaveText('Rough');
+
+  // turned off, none of it applies
+  await page.click('#rulesBox summary');
+  await page.fill('#setNpc', '0');
+  await page.press('#setNpc', 'Tab');
+  await expect(lemona.locator('.chip')).not.toHaveText('Deal');
+  await expect(lemona.locator('td').nth(2)).not.toContainText('NPC');
+  // the table is judged afresh (only Dark Guardian is still a deal); the log keeps the alert that already went off
+  await expect(page.locator('#shopTable tbody tr.v-deal')).toHaveCount(1);
+  await expect(page.locator('#dealList li', { hasText: 'Lemona' })).toHaveCount(1);
+  await expect(page.locator('#apTotal')).toHaveText('107,000');   // 2 × 21,000 + 65,000
+  await expect(row).not.toContainText('NPC');
+
+  // and the setting is kept
+  await page.reload();
+  await expect(page.locator('#setNpc')).toHaveValue('0');
   expect(errors).toEqual([]);
 });
 

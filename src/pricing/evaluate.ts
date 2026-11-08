@@ -1,6 +1,6 @@
 import type { Engine } from '../engine';
 import type { BookItem, Evaluation, Listing, MarketItem, PriceMode, Settings, TooltipRead, UsualSource } from '../lib/types';
-import { isRough } from '../market/marketIndex';
+import { isRough, npcSellPrice } from '../market/marketIndex';
 import { statValue } from '../tooltip/statValue';
 import { sightingStats, type SightingStats } from './priceBook';
 
@@ -59,9 +59,11 @@ export function evaluate(e: Engine, row: Judged): Evaluation {
   const stats = row.tip ? statValue(row.tip, { statPct: e.settings.statPct, slotWorth: e.settings.slotWorth, maxSlotsSeen: it?.maxSlots }) : null;
   const usualBase = u && stats ? u.value : null;
   if (u && stats) u = { ...u, value: u.value * stats.mult, rough: false };
+  // an NPC pays the same for any copy, stats or not, and takes any stack; sets (stars) are priced as a whole
+  const npcEach = row.set ? null : npcSellPrice(mk, e.settings.npcRatio);
   const out: Evaluation = {
     verdict: 'new', usual: u?.value ?? null, usualBase, usualSrc: u?.src ?? null, stats,
-    pct: null, profit: null, target: false, why: '',
+    pct: null, profit: null, target: false, why: '', npc: npcEach, npcFlip: false,
   };
   if (row.greyed) return { ...out, verdict: 'sold' };
   if (u) {
@@ -78,6 +80,11 @@ export function evaluate(e: Engine, row: Judged): Evaluation {
       : 'The market price comes from fewer than 5 sales.';
   }
   if (it?.buyUnder && row.unit <= it.buyUnder) { out.verdict = 'deal'; out.target = true; out.why = ''; }
+  // Buying it to sell straight to an NPC needs no market and no sales fee: if that pays enough, it is a deal
+  if (npcEach != null && !row.unsure) {
+    const npcProfit = Math.round(npcEach * row.units - row.price);
+    if (npcProfit >= e.settings.minProfit && out.verdict !== 'deal') { out.verdict = 'deal'; out.npcFlip = true; out.profit = npcProfit; out.why = ''; }
+  }
   if (row.unsure && out.verdict === 'deal') { out.verdict = 'unsure'; out.why = "The price didn't read cleanly."; }
   return out;
 }
