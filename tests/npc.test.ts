@@ -16,12 +16,16 @@ import { engine, market, NOW } from './helpers/market';
 const item = (n: string, p: number | null, npc: number | undefined, over: Partial<MarketItem> = {}): MarketItem =>
   ({ id: `basil:0${Math.abs(n.length * 7919)}`, n, c: 'Equips', p, s: 100, d: 0, w: 0, ...(npc ? { npc } : {}), ...over });
 
-/** A market price of 3,000 and an NPC shop price of 20,000, so an NPC pays 10,000 (half). */
+/**
+ * Fine Cape: the market says 30,000, an NPC shop charges 20,000, so an NPC pays 10,000, under the market. Cheap Boots:
+ * the market says 12,000 and an NPC would pay 12,000. Junk Cap: the market says 3,000 but half its shop price is
+ * 10,000, so the guess is contradicted (nobody sells under what an NPC pays). Plain Gloves have no market price.
+ */
 const ITEMS: MarketItem[] = [
-  item('Junk Cap', 3000, 20000),
   item('Fine Cape', 30000, 20000),
+  item('Cheap Boots', 12000, 24000),
+  item('Junk Cap', 3000, 20000),
   item('Plain Gloves', null, 8000),
-  item('Plain Boots', 2000, 9000),
   item('Free Hat', 500, undefined),
   item('Wolbi Throwing Stars', 2499, 4000, { c: 'Stars' }),
   item('Red Potion', 40, 50, { c: 'Use' }),
@@ -81,7 +85,7 @@ describe('reading NPC shop prices off the tracker page', () => {
 });
 
 describe('what an NPC pays', () => {
-  const mk = (npc?: number) => item('X', 1000, npc);
+  const mk = (npc?: number, p: number | null = null) => item('X', p, npc);
   it('is half the shop price by default, rounded down', () => {
     expect(npcSellPrice(mk(20000), 50)).toBe(10000);
     expect(npcSellPrice(mk(27601), 50)).toBe(13800);
@@ -98,85 +102,135 @@ describe('what an NPC pays', () => {
     expect(npcSellPrice(mk(20000), 0)).toBeNull();
     expect(npcSellPrice(mk(20000), -5)).toBeNull();
     expect(npcSellPrice(mk(1), 50)).toBeNull();   // rounds down to nothing
-    expect(DEFAULT_SETTINGS.npcRatio).toBe(50);
+    expect(DEFAULT_SETTINGS).toMatchObject({ npcRatio: 50, npcDeals: 'off' });
+  });
+  it('is kept while the market is at or above it, and dropped when the market is below it', () => {
+    expect(npcSellPrice(mk(20000, 30000), 50)).toBe(10000);
+    expect(npcSellPrice(mk(20000, 10000), 50)).toBe(10000);   // equal: nothing contradicts it
+    expect(npcSellPrice(mk(20000, 9999), 50)).toBeNull();
+    expect(npcSellPrice(mk(20000, 3000), 50)).toBeNull();
+    // a lower share is less likely to be contradicted
+    expect(npcSellPrice(mk(20000, 9999), 40)).toBe(8000);
+  });
+
+  it('is dropped for the real weapons that trade under half their shop price, kept where the market agrees', () => {
+    const real = parseTrackerPage(readFileSync(join(process.cwd(), 'tests', 'fixtures', 'tracker', 'real-sample.html'), 'utf8'), Date.now());
+    const pay = (n: string) => npcSellPrice(real.items.find((x) => x.n === n)!, 50);
+    // thousands of sales at about 10,000 while an NPC shop charges 26,000: an NPC cannot be paying 13,000
+    expect(real.items.find((x) => x.n === 'Mithril Pole Arm')).toMatchObject({ p: 10000, npc: 26000 });
+    expect(pay('Mithril Pole Arm')).toBeNull();
+    // the market is above what half the shop price says
+    expect(pay('Adamantium Guards')).toBe(13800);   // market 45,999
+    expect(pay('Meba')).toBe(8250);                 // market 12,000
+    expect(pay('Black Dragon Robe')).toBe(10800);   // market 12,999
+    expect(pay('Weighted Earrings')).toBe(4500);    // market 5,617
   });
 });
 
 describe('a shop listing and an NPC', () => {
-  it('is a deal when an NPC pays enough more than it costs, with no market involved', () => {
-    // the market says 3,000, so 4,000 is pricey; an NPC pays 10,000
-    const ev = evaluate(e(), listing({ key: 'junk cap', price: 4000 }));
-    expect(ev).toMatchObject({ verdict: 'deal', npcFlip: true, npc: 10000, profit: 6000 });
-    expect(ev.pct).toBeGreaterThan(0.15);
+  const on = { npcDeals: 'on' as const };
+
+  describe('by default', () => {
+    it('is judged by the market and your sightings alone: the NPC price changes no verdict and no profit', () => {
+      const boots = evaluate(e(), listing({ key: 'cheap boots', price: 9000 }));   // 25% under 12,000, but only 2,640 profit
+      expect(boots).toMatchObject({ npcFlip: false, profit: Math.round(12000 * 0.97 - 9000) });
+      expect(boots.verdict).not.toBe('deal');
+      expect(evaluate(e(), listing({ key: 'plain gloves', price: 1000 }))).toMatchObject({ verdict: 'new', profit: null, usual: null, npcFlip: false });
+    });
+
+    it('still shows what an NPC pays, and what selling to one would make', () => {
+      expect(evaluate(e(), listing({ key: 'cheap boots', price: 9000 }))).toMatchObject({ npc: 12000, npcProfit: 3000 });
+      expect(evaluate(e(), listing({ key: 'plain gloves', price: 1000 }))).toMatchObject({ npc: 4000, npcProfit: 3000 });
+      expect(evaluate(e(), listing({ key: 'cheap boots', price: 15000 }))).toMatchObject({ npc: 12000, npcProfit: -3000 });
+    });
+
+    it('does not alert for an NPC flip', () => {
+      const deals: string[] = [];
+      const s = new ShopSession(e(), { onDeal: (d) => deals.push(d.name) });
+      s.read([{ name: 'Plain Gloves', truncated: false, nameConf: 95, cy: null, qty: 1, price: 1000, greyed: false, unsure: false }], false);
+      expect(deals).toEqual([]);
+    });
   });
 
-  it('is not a deal when the profit is under the minimum, though the NPC price is still shown', () => {
-    const ev = evaluate(e(), listing({ key: 'junk cap', price: 8000 }));   // 2,000 profit, minimum is 3,000
-    expect(ev).toMatchObject({ npcFlip: false, npc: 10000 });
-    expect(ev.verdict).not.toBe('deal');
-    expect(evaluate(e({ settings: { minProfit: 1500 } }), listing({ key: 'junk cap', price: 8000 }))).toMatchObject({ verdict: 'deal', npcFlip: true, profit: 2000 });
+  describe('where an NPC price is contradicted by the market', () => {
+    it('is not shown or used at all, even with NPC deals on', () => {
+      for (const settings of [{}, on]) {
+        expect(evaluate(e({ settings }), listing({ key: 'junk cap', price: 1000 }))).toMatchObject({ npc: null, npcProfit: null, npcFlip: false });
+      }
+    });
   });
 
-  it('is not a deal when the listing costs more than an NPC pays', () => {
-    expect(evaluate(e(), listing({ key: 'junk cap', price: 12000 }))).toMatchObject({ npcFlip: false, npc: 10000 });
+  describe('with NPC flips counted as deals', () => {
+    const ev = (key: string, price: number, over: Partial<Listing> = {}, settings: object = {}) => evaluate(e({ settings: { ...on, ...settings } }), listing({ key, price, ...over }));
+
+    it('is a deal when an NPC pays at least the minimum profit more than it costs, with no market involved', () => {
+      expect(ev('plain gloves', 1000)).toMatchObject({ verdict: 'deal', npcFlip: true, usual: null, npc: 4000, profit: 3000 });
+      expect(ev('cheap boots', 9000)).toMatchObject({ verdict: 'deal', npcFlip: true, profit: 3000 });   // the market alone says fair
+    });
+
+    it('is not a deal when the profit is under the minimum, or the listing costs more', () => {
+      expect(ev('cheap boots', 11000)).toMatchObject({ npcFlip: false, npcProfit: 1000 });
+      expect(ev('cheap boots', 15000)).toMatchObject({ npcFlip: false });
+      expect(ev('cheap boots', 11000, {}, { minProfit: 500 })).toMatchObject({ verdict: 'deal', npcFlip: true, profit: 1000 });
+    });
+
+    it('stays an ordinary deal, with its own profit, when the usual price already makes it one', () => {
+      const d = ev('fine cape', 15000);   // 50% under the market's 30,000; an NPC pays 10,000
+      expect(d).toMatchObject({ verdict: 'deal', npcFlip: false });
+      expect(d.profit).toBe(Math.round(30000 * 0.97 - 15000));
+    });
+
+    it('counts a stack: an NPC pays for every one', () => {
+      expect(ev('plain gloves', 5000, { qty: 5, units: 5, unit: 1000 })).toMatchObject({ npcFlip: true, profit: 15000 });   // 5 × 4,000 − 5,000
+    });
+
+    it('does not depend on the stats of the copy', () => {
+      const tip: TooltipRead = { key: 'cheap boots', name: 'Cheap Boots', type: 'Shoes', remaining: 3, stats: [{ label: 'att', weight: 1, total: 50, base: 60, delta: -10 }] };
+      const d = evaluate(e({ settings: on }), { ...listing({ key: 'cheap boots', price: 9000 }), tip });
+      expect(d).toMatchObject({ npc: 12000, npcFlip: true, profit: 3000 });
+    });
+
+    it('is ignored for a row read doubtfully, a sold row and a set', () => {
+      expect(ev('plain gloves', 1000, { unsure: true }).npcFlip).toBe(false);
+      expect(ev('plain gloves', 1000, { greyed: true })).toMatchObject({ verdict: 'sold', npcFlip: false });
+      expect(ev('wolbi throwing stars', 100, { set: true, qty: 800, units: 1, unit: 100 })).toMatchObject({ npc: null, npcFlip: false });
+    });
+
+    it('does nothing for an item no NPC shop sells, or when NPC prices are turned off', () => {
+      expect(ev('free hat', 100)).toMatchObject({ npc: null, npcFlip: false });
+      expect(ev('plain gloves', 1000, {}, { npcRatio: 0 })).toMatchObject({ npc: null, npcFlip: false, verdict: 'new' });
+      expect(evaluate(engine(), listing({ key: 'traus', price: 40000 })).npc).toBeNull();
+    });
+
+    it('alerts like any deal, and says why', () => {
+      const en = e({ settings: on });
+      const deals: string[] = [];
+      const s = new ShopSession(en, { onDeal: (d) => deals.push(d.name) });
+      s.read([{ name: 'Plain Gloves', truncated: false, nameConf: 95, cy: null, qty: 1, price: 1000, greyed: false, unsure: false }], false);
+      expect(deals).toEqual(['Plain Gloves']);
+      const d = s.deals[0]!;
+      expect(dealLine(d, en.market)).toMatchObject({ why: 'an NPC pays 4,000 each for it', profit: '+3,000', profitNote: 'selling to an NPC' });
+      expect(dealLine({ ...d, npcFlip: false }, en.market).profitNote).toBe('after fee');
+    });
   });
 
-  it('stays an ordinary deal, with its own profit, when the usual price already makes it one', () => {
-    const ev = evaluate(e(), listing({ key: 'fine cape', price: 15000 }));   // 50% under 30,000; an NPC pays 10,000
-    expect(ev).toMatchObject({ verdict: 'deal', npcFlip: false });
-    expect(ev.profit).toBe(Math.round(30000 * 0.97 - 15000));
-  });
-
-  it('is a deal from the NPC price alone when there is no market price', () => {
-    expect(evaluate(e(), listing({ key: 'plain gloves', price: 1000 }))).toMatchObject({ verdict: 'deal', npcFlip: true, usual: null, npc: 4000, profit: 3000 });
-  });
-
-  it('counts a stack: an NPC pays for every one', () => {
-    const ev = evaluate(e(), listing({ key: 'junk cap', qty: 5, price: 25000 }));   // 5 × 10,000 − 25,000
-    expect(ev).toMatchObject({ npcFlip: true, profit: 25000 });
-  });
-
-  it('does not depend on the stats of the copy', () => {
-    const tip: TooltipRead = { key: 'junk cap', name: 'Junk Cap', type: 'Hat', remaining: 3, stats: [{ label: 'att', weight: 1, total: 50, base: 60, delta: -10 }] };
-    const ev = evaluate(e(), { ...listing({ key: 'junk cap', price: 4000 }), tip });
-    expect(ev.npc).toBe(10000);
-    expect(ev).toMatchObject({ npcFlip: true, profit: 6000 });
-  });
-
-  it('is ignored for a row read doubtfully, a sold row and a set', () => {
-    expect(evaluate(e(), listing({ key: 'junk cap', price: 4000, unsure: true })).npcFlip).toBe(false);
-    expect(evaluate(e(), listing({ key: 'junk cap', price: 4000, greyed: true }))).toMatchObject({ verdict: 'sold', npcFlip: false });
-    expect(evaluate(e(), listing({ key: 'wolbi throwing stars', price: 100, set: true, qty: 800, units: 1, unit: 100 }))).toMatchObject({ npc: null, npcFlip: false });
-  });
-
-  it('does nothing for an item no NPC shop sells, or when turned off', () => {
-    expect(evaluate(e(), listing({ key: 'free hat', price: 100 }))).toMatchObject({ npc: null, npcFlip: false });
-    expect(evaluate(e({ settings: { npcRatio: 0 } }), listing({ key: 'junk cap', price: 4000 }))).toMatchObject({ npc: null, npcFlip: false });
-    // and nothing changes for the items the other tests use
-    expect(evaluate(engine(), listing({ key: 'traus', price: 40000 })).npc).toBeNull();
-  });
-
-  it('alerts like any deal, and says why', () => {
-    const en = e();
-    const deals: string[] = [];
-    const s = new ShopSession(en, { onDeal: (d) => deals.push(d.name) });
-    s.read([{ name: 'Junk Cap', truncated: false, nameConf: 95, cy: null, qty: 1, price: 4000, greyed: false, unsure: false }], false);
-    expect(deals).toEqual(['Junk Cap']);
-    const d = s.deals[0]!;
-    expect(dealLine({ ...d, npcFlip: false }, en.market).profitNote).toBe('after fee');
-    expect(dealLine(d, en.market)).toMatchObject({ why: 'an NPC pays 10,000 each for it', profit: '+6,000', profitNote: 'selling to an NPC' });
-  });
-
-  it('shows what the NPC pays under the usual price', () => {
+  it('shows what an NPC pays under the usual price, and what selling to one would make beside the profit', () => {
     const en = e();
     const s = new ShopSession(en);
-    s.read([{ name: 'Junk Cap', truncated: false, nameConf: 95, cy: null, qty: 1, price: 4000, greyed: false, unsure: false },
-      { name: 'Free Hat', truncated: false, nameConf: 95, cy: null, qty: 1, price: 400, greyed: false, unsure: false }], false);
-    const rows = s.displayRows();
-    const cap = shopRowHtml(rows.find((r) => r.name === 'Junk Cap')!, en.market), hat = shopRowHtml(rows.find((r) => r.name === 'Free Hat')!, en.market);
-    expect(cap).toContain('<span class="sub">NPC 10,000</span>');
-    expect(cap).toContain('An NPC pays 10,000 each for it, more than this listing costs.');
-    expect(hat).not.toContain('NPC');
+    const read = (name: string, price: number) => ({ name, truncated: false, nameConf: 95, cy: null, qty: 1, price, greyed: false, unsure: false });
+    s.read([read('Cheap Boots', 9000), read('Cheap Boots', 15000), read('Free Hat', 400), read('Junk Cap', 1000)], false);
+    const rows = s.displayRows(), html = (n: string, price: number) => shopRowHtml(rows.find((r) => r.name === n && r.price === price)!, en.market);
+    const cheap = html('Cheap Boots', 9000);
+    expect(cheap).toContain('<span class="sub">NPC 12,000</span>');
+    expect(cheap).toContain('NPC +3,000');
+    expect(cheap).toContain('An NPC pays about 12,000 each for it (half its shop price), more than this listing costs.');
+    // it costs more than an NPC pays: the NPC price is shown, but nothing is made
+    const dear = html('Cheap Boots', 15000);
+    expect(dear).toContain('NPC 12,000');
+    expect(dear).not.toContain('NPC +');
+    // no NPC shop, or the market contradicts the guess: nothing
+    expect(html('Free Hat', 400)).not.toContain('NPC');
+    expect(html('Junk Cap', 1000)).not.toContain('NPC');
   });
 });
 
@@ -188,18 +242,17 @@ describe('an item in the appraisal and an NPC', () => {
     expect(line('Plain Gloves', 2)).toMatchObject({ unit: 4000, src: 'npc', tag: 'rough', total: 8000, npc: 4000 });
   });
 
-  it('is worth at least that, when the market price is lower', () => {
-    expect(line('Junk Cap')).toMatchObject({ unit: 10000, src: 'npc', total: 10000 });   // market says 3,000
-  });
-
-  it('keeps the market price when it is higher', () => {
+  it('keeps the market price: the tracker is the truth, an NPC is only a fallback', () => {
     expect(line('Fine Cape')).toMatchObject({ unit: 30000, src: 'market', tag: 'priced', npc: 10000 });
+    expect(line('Cheap Boots')).toMatchObject({ unit: 12000, src: 'market', npc: 12000 });
+    // the market is under half the shop price: the NPC price is not believed, and does not lift it
+    expect(line('Junk Cap')).toMatchObject({ unit: 3000, src: 'market', npc: null });
   });
 
-  it('lifts a price that stats brought down, not one the person typed', () => {
+  it('lifts a price that stats brought below what an NPC pays, not one the person typed', () => {
     const tip: TooltipRead = { key: 'fine cape', name: 'Fine Cape', type: 'Cape', remaining: 0, stats: [{ label: 'att', weight: 1, total: 20, base: 60, delta: -40 }] };
     expect(line('Fine Cape', 1, { tip })).toMatchObject({ unit: 10000, src: 'npc' });   // 30,000 × 0.25 would be 7,500
-    expect(line('Junk Cap', 1, { price: 500 })).toMatchObject({ unit: 500, src: 'line', npc: 10000 });
+    expect(line('Fine Cape', 1, { price: 500 })).toMatchObject({ unit: 500, src: 'line', npc: 10000 });
   });
 
   it('does not apply to a set, to an item no NPC shop sells, or when turned off', () => {
@@ -219,6 +272,7 @@ describe('an item in the appraisal and an NPC', () => {
     expect(html).toContain('<span class="sub">NPC price</span>');
     expect(html).toContain('what an NPC pays for it: the least it is worth');
     expect(appraisalRowHtml(line('Free Hat'), en.market)).not.toContain('NPC');
+    expect(appraisalRowHtml(line('Junk Cap'), en.market)).not.toContain('NPC');
   });
 });
 

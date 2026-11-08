@@ -99,6 +99,8 @@
         <label class="field" title="How much one point above or below the item's base moves its value. Weapon and magic attack count fully, STR, DEX, INT and LUK half."><span>Each stat point <em>% of value</em></span><input id="setStatPct" type="number" min="0" max="50" step="1"></label>
         <label class="field" title="A used upgrade slot is counted as this many stat points lost, since a clean item can still be scrolled."><span>Each used slot <em>stat points</em></span><input id="setSlotWorth" type="number" min="0" max="5" step="0.5"></label>
         <label class="field" title="What an NPC pays when you sell it an item, as a share of the price its shop charges. Usually half. 0 ignores NPC prices."><span>NPC pays <em>% of its shop price</em></span><input id="setNpc" type="number" min="0" max="100" step="5"></label>
+        <label class="field" title="Count a listing that costs less than an NPC pays as a deal, even when the market price says it is not. Off, the NPC price is only shown beside the profit. Needs NPC pays above 0."><span>NPC flips are deals</span>
+          <select id="setNpcDeals"><option value="off">No, only show them</option><option value="on">Yes, with the minimum profit</option></select></label>
         <label class="field"><span>Check every <em>seconds</em></span><input id="setInterval" type="number" min="0.4" max="5" step="0.1"></label>
       </div>
     </div>

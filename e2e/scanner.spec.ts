@@ -27,7 +27,7 @@ type TrackerRow = [id: string, name: string, category: string, price: number, sa
 const trackerPage = (rows: TrackerRow[]) => `<!doctype html><html><body><div id="world"><span>Windia</span></div>
 <button id="updated" title="Last updated Nov 4, 9:00 AM"></button><table><tbody id="rows">
 ${rows.map(([id, n, c, p, s, e, npc]) => `<tr data-id="basil:${id}"><td><img data-fallback="${e}"><span class="item-name" title="${n}">${n}</span><span class="item-cat">${c}</span></td>
-<td data-col="price"><span class="meso" title="${Number(p).toLocaleString('en-US')} mesos">x</span></td><td><span class="sales-count">${s}</span></td>${npc ? `<td data-col="from"><span class="src-chips"><span class="src-chip src-shop" data-src-tip="NPC shop|Test NPC (Henesys) · ${npc.toLocaleString('en-US')} mesos each"></span></span></td>` : ''}</tr>`).join('\n')}
+<td data-col="price">${p ? `<span class="meso" title="${Number(p).toLocaleString('en-US')} mesos">x</span>` : '<span class="na-chip">No sales</span>'}</td><td><span class="sales-count">${s}</span></td>${npc ? `<td data-col="from"><span class="src-chips"><span class="src-chip src-shop" data-src-tip="NPC shop|Test NPC (Henesys) · ${npc.toLocaleString('en-US')} mesos each"></span></span></td>` : ''}</tr>`).join('\n')}
 </tbody></table></body></html>`;
 
 const TRACKER = trackerPage([
@@ -384,53 +384,68 @@ test('orders the appraisal by a column, most valuable first, and remembers it', 
   expect(errors).toEqual([]);
 });
 
-test('uses what an NPC pays: a deal in the shop, a floor in the appraisal, and off when set to 0', async ({ page }) => {
+test('shows what an NPC pays beside the market, and only counts it as a deal when asked', async ({ page }) => {
   const { errors } = await open(page);
-  // Lemona: the market says 21,000, an NPC shop sells it at 50,000 so an NPC pays 25,000 for it
+  // Boots: the market says 12,000 and an NPC shop charges 24,000, so an NPC pays 12,000: nothing contradicts it.
+  // Lemona: the market says 21,000 but half its NPC shop price is 25,000, which the market contradicts: not used.
+  // Plain Gloves have no market price yet.
   const withNpc = trackerPage([
-    ['01472013', 'Dark Guardian', 'Weapons', 120000, 300, '🗡️'], ['01072044', 'Bronze Chain Boots', 'Equips', 12000, 60, '👢'],
+    ['01472013', 'Dark Guardian', 'Weapons', 120000, 300, '🗡️'], ['01072044', 'Bronze Chain Boots', 'Equips', 12000, 60, '👢', 24000],
     ['01082003', 'Lemona', 'Equips', 21000, 50, '🧤', 50000], ['02041019', 'Cape INT Scroll: Lesser', 'Scrolls', 65000, 955, '📜'],
-    ['02040703', 'Shoes Speed Scroll: Chaos', 'Scrolls', 21000, 120, '📜'],
+    ['02040703', 'Shoes Speed Scroll: Chaos', 'Scrolls', 21000, 120, '📜'], ['01082099', 'Plain Gloves', 'Equips', 0, 0, '🧤', 8000],
   ]);
   await page.setInputFiles('#fileMarket', { name: 'tracker.html', mimeType: 'text/html', buffer: Buffer.from(withNpc) });
-  await expect(page.locator('#marketMsg')).toContainText('1 have an NPC shop price');
-  await expect(page.locator('#marketAge')).toContainText('1 have an NPC shop price');
+  await expect(page.locator('#marketMsg')).toContainText('3 have an NPC shop price');
+  await expect(page.locator('#marketAge')).toContainText('3 have an NPC shop price');
+  const shot = () => screenFile('shop.png', placeOn(scaleBy(loadPng('shop-list.png'), 0.5), 1440, 900, 400, 200));
+  const boots = () => page.locator('#shopTable tbody tr', { hasText: 'Bronze Chain Boots' }).filter({ hasText: '1 for 9,999' });   // the pair listed at 9,999
 
-  // in the shop: Lemona at 19,999 is only "fair" by the market, but an NPC pays 5,001 more than it costs
-  await loadShot(page, screenFile('shop.png', placeOn(scaleBy(loadPng('shop-list.png'), 0.5), 1440, 900, 400, 200)));
-  const lemona = page.locator('#shopTable tbody tr', { hasText: 'Lemona' });
-  await expect(lemona.locator('.chip')).toHaveText('Deal');
-  await expect(lemona.locator('td').nth(2)).toContainText('NPC 25,000');
-  await expect(lemona.locator('td').nth(4)).toContainText('+5,001');
-  await expect(page.locator('#dealProfit')).toContainText('selling to an NPC');
-  await expect(page.locator('#dealList li', { hasText: 'Lemona' })).toContainText('an NPC pays 25,000 each for it');
-  // the other listings have no NPC price
+  // by default the shop is judged by the market alone: the NPC price is shown, and changes nothing
+  await loadShot(page, shot());
+  await expect(boots().locator('td').nth(2)).toContainText('NPC 12,000');
+  await expect(boots().locator('td').nth(4)).toContainText('NPC +2,001');
+  await expect(boots().locator('.chip')).toHaveText('Fair');
+  await expect(boots().locator('td').nth(4)).toContainText('+1,641');   // the profit is still the market's: 12,000 less the fee, less 9,999
+  await expect(page.locator('#shopTable tbody tr', { hasText: 'Lemona' }).locator('td').nth(2)).not.toContainText('NPC');   // contradicted by the market
   await expect(page.locator('#shopTable tbody tr', { hasText: 'Dark Guardian' }).locator('td').nth(2)).not.toContainText('NPC');
+  await expect(page.locator('#dealList li')).toHaveCount(1);   // only Dark Guardian, a deal by the market
+  await expect(page.locator('#dealList li')).toContainText('Dark Guardian');
 
-  // in the appraisal: an NPC pays more than the market, so it is worth at least that
-  await page.fill('#apAdd', 'Lemona x2\nCape INT Scroll: Lesser');
+  // asked to, an NPC flip is a deal: no market needed, no sales fee
+  await page.click('#rulesBox summary');
+  await page.selectOption('#setNpcDeals', 'on');
+  await page.fill('#setMinProfit', '1500');
+  await page.press('#setMinProfit', 'Tab');
+  await loadShot(page, shot());
+  await expect(boots().locator('.chip')).toHaveText('Deal');
+  await expect(boots().locator('td').nth(4)).toContainText('+2,001');
+  await expect(page.locator('#dealList li', { hasText: 'Bronze Chain Boots' })).toContainText('an NPC pays 12,000 each for it');
+  await expect(page.locator('#dealProfit')).toContainText('selling to an NPC');
+
+  // in the appraisal: the market price is kept, and an NPC's is only a fallback for what has none
+  await page.fill('#apAdd', 'Plain Gloves x2\nBronze Chain Boots\nLemona');
   await page.click('#apAddBtn');
-  await expect(page.locator('#apTotal')).toHaveText('115,000');   // 2 × 25,000 + 65,000
-  const row = page.locator('#apBody tr', { hasText: 'Lemona' });
-  await expect(row).toContainText('NPC price');
-  await expect(row).toContainText('NPC pays 25,000');
-  await expect(row.locator('.chip')).toHaveText('Rough');
+  await expect(page.locator('#apTotal')).toHaveText('41,000');   // 2 × 4,000 + 12,000 + 21,000
+  const gloves = page.locator('#apBody tr', { hasText: 'Plain Gloves' });
+  await expect(gloves).toContainText('NPC price');
+  await expect(gloves).toContainText('NPC pays 4,000');
+  await expect(gloves.locator('.chip')).toHaveText('Rough');
+  await expect(page.locator('#apBody tr', { hasText: 'Bronze Chain Boots' })).toContainText('market');
+  await expect(page.locator('#apBody tr', { hasText: 'Lemona' })).not.toContainText('NPC');
 
   // turned off, none of it applies
-  await page.click('#rulesBox summary');
   await page.fill('#setNpc', '0');
   await page.press('#setNpc', 'Tab');
-  await expect(lemona.locator('.chip')).not.toHaveText('Deal');
-  await expect(lemona.locator('td').nth(2)).not.toContainText('NPC');
-  // the table is judged afresh (only Dark Guardian is still a deal); the log keeps the alert that already went off
-  await expect(page.locator('#shopTable tbody tr.v-deal')).toHaveCount(1);
-  await expect(page.locator('#dealList li', { hasText: 'Lemona' })).toHaveCount(1);
-  await expect(page.locator('#apTotal')).toHaveText('107,000');   // 2 × 21,000 + 65,000
-  await expect(row).not.toContainText('NPC');
+  await expect(boots().locator('td').nth(2)).not.toContainText('NPC');
+  await expect(boots().locator('td').nth(4)).not.toContainText('NPC');
+  await expect(boots().locator('.chip')).not.toHaveText('Deal');
+  await expect(page.locator('#apTotal')).toHaveText('33,000');   // the gloves have no price now
+  await expect(gloves.locator('.chip')).toHaveText('No price');
 
-  // and the setting is kept
+  // and the settings are kept
   await page.reload();
   await expect(page.locator('#setNpc')).toHaveValue('0');
+  await expect(page.locator('#setNpcDeals')).toHaveValue('on');
   expect(errors).toEqual([]);
 });
 

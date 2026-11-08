@@ -39,6 +39,8 @@ export interface Settings {
   slotWorth: number;
   /** % of an NPC shop's price that an NPC pays when you sell it the item; 0 ignores NPC prices */
   npcRatio: number;
+  /** whether a listing that costs less than an NPC pays counts as a deal; off, the NPC price is only shown */
+  npcDeals: 'on' | 'off';
   /** how the open shop's listings are ordered, and which way */
   shopSort: ShopSortCol;
   shopSortDir: 1 | -1;
@@ -56,7 +58,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   discount: 25, minProfit: 3000, fee: 3, base: 'median', minSeen: 3, interval: 0.8, sound: true,
   market: 'on', area: 'auto', readStats: 'on', statPct: 8, slotWorth: 1,
-  npcRatio: 50, shopSort: 'best', shopSortDir: 1, appraisalSort: 'added', appraisalSortDir: 1, appraisalMode: 'fair', appraisalArea: 'any', bulkOffer: 100,
+  npcRatio: 50, npcDeals: 'off', shopSort: 'best', shopSortDir: 1, appraisalSort: 'added', appraisalSortDir: 1, appraisalMode: 'fair', appraisalArea: 'any', bulkOffer: 100,
 };
 
 /** [time ms, price per unit, units] */
@@ -193,7 +195,9 @@ export interface Evaluation {
   target: boolean;
   /** what an NPC pays for one of them, when its shop price is known (the item's price to you is not involved) */
   npc: number | null;
-  /** a deal only because an NPC pays more for it than it costs: no market involved */
+  /** what selling it to an NPC would make: what an NPC pays for all of them, less the price (negative if it costs more) */
+  npcProfit: number | null;
+  /** a deal only because an NPC pays more for it than it costs, when NPC flips count as deals */
   npcFlip: boolean;
   /** why a would-be deal shows as "check" */
   why: string;
