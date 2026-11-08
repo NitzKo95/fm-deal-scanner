@@ -19,6 +19,23 @@ for the item, from the tracker or your own sightings.
 Every item gets its picture, and its name is matched, whether or not a tracker page is loaded: the game's own
 item list fills in for items the tracker doesn't list.
 
+### NPC prices
+
+The tracker page also lists, for 450 or so items, the price an NPC shop charges for it (the "NPC shop" chip in its Source
+column). An NPC usually pays half of that when you sell it the item, so that is what the scanner uses (change the share
+under **Rules**, **NPC pays % of its shop price**; 0 ignores NPC prices):
+
+- **Shop:** each listing shows what an NPC pays under its usual price. A listing that costs at least your minimum profit
+  less than an NPC pays is a deal on its own, with no market price needed and no sales fee: buy it and sell it to the NPC.
+  It chimes and lands in **Deals this session** like any other, saying why.
+- **Appraisal:** an item is worth at least what an NPC pays. With no market price that is its price (marked *Rough*, tagged
+  *NPC price*); a lower market price is lifted to it. A price you type on a line stays as typed. Throwing stars are left
+  out, as they are priced per set.
+
+If you loaded the tracker page before this was added, load it again to get the NPC prices; the market line says when there
+are none. The page's NPC prices come from [NiaDB](https://meowdb.com/msclassic), which MesoWatch credits as used with their
+permission.
+
 ### Appraisal
 
 When someone asks "how much for all?", the **Appraisal** panel adds up a pile of items.

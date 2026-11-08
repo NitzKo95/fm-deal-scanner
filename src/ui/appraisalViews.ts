@@ -6,7 +6,7 @@ import { marketTip, type MarketIndex } from '../market/marketIndex';
 import { iconHtml } from './views';
 
 export const TAG_TEXT: Record<LineTag, string> = { priced: 'Priced', rough: 'Rough', unpriced: 'No price', ignored: 'Skipped' };
-const SRC_TEXT: Record<LineSource, string> = { yours: 'your price', market: 'market', seen: 'your sightings', line: 'typed here' };
+const SRC_TEXT: Record<LineSource, string> = { yours: 'your price', market: 'market', seen: 'your sightings', line: 'typed here', npc: 'NPC price' };
 
 const plural = (n: number, one: string, many: string): string => `${fmt(n)} ${n === 1 ? one : many}`;
 
@@ -15,13 +15,14 @@ function tagTip(l: AppraisalLine, market: MarketIndex): string {
   if (l.tag === 'unpriced') return 'No price on the tracker or in your sightings. Type one in the Each box.';
   if (l.tag === 'ignored') return 'Left out of the total.';
   const tip = marketTip(market.get(l.entry.key));
+  if (l.src === 'npc') return "No market price, so this is what an NPC pays for it: the least it is worth. Type a price to use your own.";
   return l.tag === 'rough' ? `A rough guide: fewer than 5 sales, or copies sell for very different prices. ${tip}` : tip;
 }
 
 /** One line: the item, how many, the price each (typeable), the total, and whether it counts. */
 export function appraisalRowHtml(l: AppraisalLine, market: MarketIndex, failed?: ReadonlySet<string>): string {
   const e = l.entry;
-  const note = [l.set ? 'priced per set' : '', l.stats?.summary ?? '', l.known ? '' : 'not on the tracker'].filter(Boolean).join(' · ');
+  const note = [l.set ? 'priced per set' : '', l.stats?.summary ?? '', l.npc != null ? `NPC pays ${fmtEach(l.npc)}` : '', l.known ? '' : 'not on the tracker'].filter(Boolean).join(' · ');
   const skip = e.ignored;
   return `<tr class="ap-${l.tag}" data-id="${esc(e.id)}">
     <td class="name"><span class="nm">${iconHtml(market, e.key, failed)}<span class="nm-t"><span class="nm-n">${esc(l.name)}</span>${note ? `<span class="sub">${esc(note)}</span>` : ''}</span></span></td>

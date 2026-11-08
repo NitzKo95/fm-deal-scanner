@@ -34,7 +34,7 @@ const MACPERM = 'macOS refused the capture. In System Settings → Privacy &amp;
 /** Rules inputs and the settings they edit. */
 const SETTING_INPUTS: Record<string, keyof Settings> = {
   setDiscount: 'discount', setMinProfit: 'minProfit', setFee: 'fee', setBase: 'base', setMarket: 'market', setArea: 'area',
-  setStats: 'readStats', setStatPct: 'statPct', setSlotWorth: 'slotWorth', setMinSeen: 'minSeen', setInterval: 'interval',
+  setStats: 'readStats', setStatPct: 'statPct', setSlotWorth: 'slotWorth', setNpc: 'npcRatio', setMinSeen: 'minSeen', setInterval: 'interval',
 };
 
 /** The page: wires the capture, the scanner and the shop to the controls and the tables. */
@@ -356,7 +356,7 @@ export class App {
       $('dealLabel').textContent = `Deal at ${clock(d.ts)}`;
       $('dealWhat').innerHTML = `${this.icon(d.key)}<span>${esc(l.name)}</span>`;
       $('dealMath').textContent = `${cap(l.listing)}, ${l.why}`;
-      $('dealProfit').innerHTML = l.profit ? `${esc(l.profit)}<small>after fee</small>` : '';
+      $('dealProfit').innerHTML = l.profit ? `${esc(l.profit)}<small>${esc(l.profitNote)}</small>` : '';
     }
   }
 
@@ -529,7 +529,7 @@ export class App {
         const kept = this.setMarket(m);
         const tidy = this.tidyBook();
         this.reevaluate(); this.render();
-        $('marketMsg').textContent = `Loaded ${fmt(this.engine.market.priced)} market prices${m.world ? ` for ${m.world}` : ''}.`
+        $('marketMsg').textContent = `Loaded ${fmt(this.engine.market.priced)} market prices${m.world ? ` for ${m.world}` : ''}.` + (this.engine.market.withNpc ? ` ${fmt(this.engine.market.withNpc)} have an NPC shop price.` : '')
           + (tidy ? ` ${tidy}` : '') + (kept ? '' : ' The browser had no room to keep them, so load the file again next time.');
       } catch {
         $('marketMsg').textContent = "That page has no price table. On meso.watch, wait until your world's prices show, save the page as Webpage, Complete, and pick that .html file.";
