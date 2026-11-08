@@ -52,7 +52,7 @@ describe('shop rows', () => {
   it('describes a deal in words', () => {
     const { e, rows } = shop([raw('Dark Guardian', 40000)]);
     expect(dealLine(rows[0]!, e.market)).toEqual({
-      name: 'Dark Guardian', listing: '1 for 40,000', why: 'usual 71,000 (market, 300 sales)', profit: '+28,870',
+      name: 'Dark Guardian', listing: '1 for 40,000', why: 'usual 71,000 (market, 300 sales)', profit: '+28,870', profitNote: 'after fee',
     });
   });
   it('prices a stack per unit and a set of stars as one', () => {

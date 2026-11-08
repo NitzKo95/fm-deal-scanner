@@ -1,6 +1,6 @@
 import type { Engine } from '../engine';
 import type { AppraisalEntry, AppraisalMode, AppraisalSortCol, StatValue, UsualSource } from '../lib/types';
-import { isSetItem } from '../market/marketIndex';
+import { isSetItem, npcSellPrice } from '../market/marketIndex';
 import { usualPrice } from '../pricing/evaluate';
 import { statValue } from '../tooltip/statValue';
 
@@ -10,8 +10,8 @@ export const APPRAISAL_MODES: Record<AppraisalMode, { label: string; blurb: stri
   greedy: { label: 'Greedy', blurb: "the higher of the tracker's typical price and the upper quarter of your own sightings" },
 };
 
-/** `line` is a price typed on that line of the appraisal. */
-export type LineSource = UsualSource | 'line';
+/** `line` is a price typed on that line of the appraisal; `npc` is what an NPC pays for it, the least it is worth. */
+export type LineSource = UsualSource | 'line' | 'npc';
 /** priced: counted; rough: counted, but from fewer than 5 sales or wildly varying ones; unpriced and ignored: not counted. */
 export type LineTag = 'priced' | 'rough' | 'unpriced' | 'ignored';
 
@@ -24,6 +24,8 @@ export interface AppraisalLine {
   set: boolean;
   /** price each (per set for sets), with any stats applied */
   unit: number | null;
+  /** what an NPC pays for one, when its shop price is known */
+  npc: number | null;
   src: LineSource | null;
   stats: StatValue | null;
   total: number | null;
@@ -60,11 +62,15 @@ export function appraiseEntry(e: Engine, entry: AppraisalEntry, mode: AppraisalM
   const stats = entry.tip && typed == null
     ? statValue(entry.tip, { statPct: e.settings.statPct, slotWorth: e.settings.slotWorth, maxSlotsSeen: it?.maxSlots })
     : null;
-  const unit = u ? u.value * (stats?.mult ?? 1) : null;
-  const rough = !!u?.rough && !stats;
+  let unit = u ? u.value * (stats?.mult ?? 1) : null, src: LineSource | null = u?.src ?? null;
+  let rough = !!u?.rough && !stats;
+  // an NPC pays its price for any copy, so nothing is worth less: with no market price it is the price, and it lifts
+  // a lower one. A price typed on the line stays as typed.
+  const npc = set ? null : npcSellPrice(mk, e.settings.npcRatio);
+  if (typed == null && npc != null && (unit == null || unit < npc)) { unit = npc; src = 'npc'; rough = true; }
   const total = unit == null ? null : Math.round(unit * entry.qty);
   const tag: LineTag = entry.ignored ? 'ignored' : unit == null ? 'unpriced' : rough ? 'rough' : 'priced';
-  return { entry, name, known: e.market.knownName(entry.key) != null, set, unit, src: u?.src ?? null, stats, total, tag };
+  return { entry, name, known: e.market.knownName(entry.key) != null, set, unit, npc, src, stats, total, tag };
 }
 
 /** The whole appraisal: every line priced in `mode`, the total, and the offer at `bulk` percent of it. */

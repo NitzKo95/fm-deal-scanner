@@ -14,6 +14,8 @@ export class MarketIndex {
   /** every key, full names plus unique short names */
   readonly keys: string[];
   readonly priced: number;
+  /** how many items have an NPC shop price */
+  readonly withNpc: number;
 
   private catalogKeyList: string[] | null = null;
   private readonly nearest = new Map<string, string | null>();
@@ -35,6 +37,7 @@ export class MarketIndex {
     }
     this.keys = [...this.byKey.keys()];
     this.priced = this.data.items.filter((it) => it.p).length;
+    this.withNpc = this.data.items.filter((it) => it.npc).length;
   }
 
   get(key: string): MarketItem | null { return this.byKey.get(key) ?? null; }
@@ -60,6 +63,16 @@ export class MarketIndex {
   }
   /** The same prices, with another catalog. */
   withCatalog(catalog: Catalog): MarketIndex { return new MarketIndex(this.data, catalog); }
+}
+
+/**
+ * What an NPC pays for one of them: a share of its shop price (half, by default), rounded down. Null when no NPC
+ * shop sells it, or when NPC prices are turned off.
+ */
+export function npcSellPrice(mk: MarketItem | null, ratio: number): number | null {
+  if (!mk?.npc || !(ratio > 0)) return null;
+  const v = Math.floor((mk.npc * Math.min(ratio, 100)) / 100);
+  return v > 0 ? v : null;
 }
 
 /** fewer than 5 sales, or copies that sell for very different prices */
